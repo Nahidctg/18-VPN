@@ -4,12 +4,12 @@ import shutil
 import time
 import logging
 import aiohttp
-import cv2  # ভিডিও প্রসেসিং এর জন্য
-import numpy as np  # কোলাজ থাম্বনেইল বানানোর জন্য
-import gc  # মেমোরি ক্লিয়ার করার জন্য
+import cv2  
+import numpy as np  
+import gc  
 import math
 import random
-import re  # লিংক এবং টেক্সট ক্লিন করার জন্য (নতুন)
+import re  
 from datetime import datetime
 from pyrogram import Client, filters, idle
 from pyrogram.types import (
@@ -24,39 +24,35 @@ from aiohttp import web
 #                          ১. সিস্টেম কনফিগারেশন
 # ====================================================================
 
-# আপনার টেলিগ্রাম ক্রেডেনশিয়ালস
 API_ID = 22697010
 API_HASH = "fd88d7339b0371eb2a9501d523f3e2a7"
 BOT_TOKEN = "8303315439:AAGKPEugn60XGMC7_u4pOaZPnUWkWHvXSNM"
-ADMIN_ID = 8172129114  # আপনার ইউজার আইডি
+ADMIN_ID = 8172129114  
 
-# মঙ্গোডিবি (ডাটাবেস) কানেকশন
 MONGO_URL = "mongodb+srv://mewayo8672:mewayo8672@cluster0.ozhvczp.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
-# লগিং কনফিগারেশন
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger("AutoBot_Enterprise_Max")
 
-# ডাটাবেস ইনিশিলাইজেশন
 mongo_client = AsyncIOMotorClient(MONGO_URL)
 db = mongo_client["Enterprise_Bot_DB"]
 
-# কালেকশন সমূহ (অরিজিনাল + নতুন)
 queue_collection = db["video_queue"]    
 config_collection = db["bot_settings"]  
 users_collection = db["users_list"]     
-history_collection = db["user_history"] # স্মার্ট ফিচার: ইউজারের হিস্ট্রি
-stats_collection = db["video_stats"]    # স্মার্ট ফিচার: ভিউ কাউন্ট
+history_collection = db["user_history"] 
+stats_collection = db["video_stats"]    
 
-# গ্লোবাল কনফিগ ও সুন্দর ক্যাপশন টেম্পলেট (Updated with VPN)
+# গ্লোবাল কনফিগ (Updated with Multi-Ad Link & Shortener Toggle)
 SYSTEM_CONFIG = {
     "source_channel": None,
     "public_channel": None,
     "log_channel": None,          
     "post_interval": 30,          
+    "shortener_active": False,    # নতুন: লিংক শর্টনার অন/অফ করার সুইচ
     "shortener_domain": None,
     "shortener_key": None,
     "shortener_list":[],         
@@ -65,13 +61,13 @@ SYSTEM_CONFIG = {
     "tutorial_link": None,        
     "force_sub": True,            
     "watermark_text": "@Enterprise_Bots",
-    "direct_ad_link": None,   # নতুন: ডাইরেক্ট লিংক
-    "vpn_enforce": False,     # নতুন: ভিপিএন সিস্টেম অন/অফ
+    "direct_ad_links":[],        # নতুন: মাল্টিপল ডাইরেক্ট লিংক রাখার লিস্ট
+    "vpn_enforce": False,         
     "caption_template": "🔥 **{title}** 🔥\n\n🎬 **Quality:** `{quality}`\n📦 **Size:** `{size}`\n👁 **Views:** `{views}`\n\n🚀 **Fastest Download Link**\n\n📢 *Join our channel for more exclusive content!*"
 }
 
 # ====================================================================
-#             🔥🔥 কাস্টম আকর্ষণীয় টাইটেল লিস্ট (NEW FEATURE) 🔥🔥
+#             🔥🔥 কাস্টম আকর্ষণীয় টাইটেল লিস্ট 🔥🔥
 # ====================================================================
 ATTRACTIVE_TITLES =[
     "🔥 New Viral Video 2026 🔞",
@@ -106,11 +102,9 @@ ATTRACTIVE_TITLES =[
     "🔞 Premium Leaked Content Free 🔞"
 ]
 
-# এন্টি-স্প্যাম ট্র্যাকার ও অ্যাড ট্র্যাকার (স্মার্ট ফিচার)
 user_last_request = {}
-user_ad_status = {} # ইউজারের অ্যাড ক্লিক ট্র্যাক করার জন্য (নতুন)
+user_ad_status = {} 
 
-# পাইরোগ্রাম ক্লায়েন্ট সেটআপ
 app = Client(
     "Enterprise_Session_Max",
     api_id=API_ID,
@@ -124,11 +118,9 @@ app = Client(
 # ====================================================================
 
 async def web_server_handler(request):
-    """সিম্পল ওয়েব পেজ রেসপন্স"""
-    return web.Response(text="✅ Bot is Running in Ultimate Smart Mode with Full Details!")
+    return web.Response(text="✅ Bot is Running in Ultimate Smart Mode with Multi-Link Support!")
 
 async def start_web_server():
-    """aiohttp ওয়েব সার্ভার রানার"""
     app_runner = web.Application()
     app_runner.add_routes([web.get('/', web_server_handler)])
     runner = web.AppRunner(app_runner)
@@ -140,39 +132,36 @@ async def start_web_server():
     logger.info(f"🌍 Web Server started on port {port}")
 
 # ====================================================================
-#                       ৩. হেল্পার ফাংশনস (Original & Smart)
+#                       ৩. হেল্পার ফাংশনস
 # ====================================================================
 
 async def load_database_settings():
-    """বট স্টার্ট হলে ডাটাবেস থেকে সব সেটিং মেমোরিতে লোড করবে"""
     settings = await config_collection.find_one({"_id": "global_settings"})
     
     if not settings:
         await config_collection.insert_one({"_id": "global_settings"})
         logger.info("⚙️ New Settings Created in Database.")
     else:
-        # ডাটাবেস থেকে ভ্যালু নিয়ে কনফিগে বসানো
         SYSTEM_CONFIG["source_channel"] = settings.get("source_channel")
         SYSTEM_CONFIG["public_channel"] = settings.get("public_channel")
         SYSTEM_CONFIG["log_channel"] = settings.get("log_channel")
         SYSTEM_CONFIG["post_interval"] = settings.get("post_interval", 30)
+        SYSTEM_CONFIG["shortener_active"] = settings.get("shortener_active", False)
         SYSTEM_CONFIG["shortener_domain"] = settings.get("shortener_domain")
         SYSTEM_CONFIG["shortener_key"] = settings.get("shortener_key")
         SYSTEM_CONFIG["auto_delete_time"] = settings.get("auto_delete_time", 0)
         SYSTEM_CONFIG["protect_content"] = settings.get("protect_content", False)
         SYSTEM_CONFIG["tutorial_link"] = settings.get("tutorial_link", None)
         SYSTEM_CONFIG["force_sub"] = settings.get("force_sub", True)
-        SYSTEM_CONFIG["shortener_list"] = settings.get("shortener_list", [])
+        SYSTEM_CONFIG["shortener_list"] = settings.get("shortener_list",[])
         SYSTEM_CONFIG["watermark_text"] = settings.get("watermark_text", "@Enterprise_Bots")
         
-        # নতুন ভিপিএন সেটিং লোড
-        SYSTEM_CONFIG["direct_ad_link"] = settings.get("direct_ad_link", None)
+        SYSTEM_CONFIG["direct_ad_links"] = settings.get("direct_ad_links",[])
         SYSTEM_CONFIG["vpn_enforce"] = settings.get("vpn_enforce", False)
         
         logger.info("⚙️ Settings Loaded Successfully from MongoDB.")
 
 async def update_database_setting(key, value):
-    """কোনো সেটিং চেঞ্জ হলে সাথে সাথে ডাটাবেস আপডেট করবে"""
     await config_collection.update_one(
         {"_id": "global_settings"},
         {"$set": {key: value}},
@@ -181,12 +170,10 @@ async def update_database_setting(key, value):
     SYSTEM_CONFIG[key] = value
 
 async def add_user_to_db(user_id):
-    """নতুন ইউজারকে ডাটাবেসে এড করবে"""
     if not await users_collection.find_one({"_id": user_id}):
         await users_collection.insert_one({"_id": user_id})
 
 async def send_log_message(text):
-    """লগ চ্যানেলে বটের স্ট্যাটাস বা এরর মেসেজ পাঠাবে"""
     if SYSTEM_CONFIG["log_channel"]:
         try:
             await app.send_message(
@@ -197,7 +184,6 @@ async def send_log_message(text):
             logger.error(f"Failed to send log: {e}")
 
 async def check_force_sub(client, user_id):
-    """ইউজার পাবলিক চ্যানেলে জয়েন আছে কিনা চেক করবে"""
     if not SYSTEM_CONFIG["force_sub"] or not SYSTEM_CONFIG["public_channel"]:
         return True 
     try:
@@ -211,7 +197,6 @@ async def check_force_sub(client, user_id):
         return True  
 
 def get_readable_size(size_in_bytes):
-    """বাইট থেকে রিডেবল সাইজ (স্মার্ট ফিচার)"""
     if size_in_bytes == 0: return "0B"
     size_name = ("B", "KB", "MB", "GB", "TB")
     i = int(math.floor(math.log(size_in_bytes, 1024)))
@@ -220,7 +205,10 @@ def get_readable_size(size_in_bytes):
     return f"{s} {size_name[i]}"
 
 async def shorten_url_api(long_url):
-    """লিংক শর্টনার API দিয়ে লিংক ছোট করবে (স্মার্ট মাল্টি-শর্টনার লজিক সহ)"""
+    """লিংক শর্টনার সিস্টেম (সুইচ অন থাকলে কাজ করবে)"""
+    if not SYSTEM_CONFIG.get("shortener_active", False):
+        return long_url  # শর্টনার অফ থাকলে অরিজিনাল লিংক রিটার্ন করবে
+        
     if SYSTEM_CONFIG["shortener_list"]:
         shortener = random.choice(SYSTEM_CONFIG["shortener_list"])
         domain = shortener.get("domain")
@@ -244,7 +232,6 @@ async def shorten_url_api(long_url):
     
     return long_url
 
-# ভিউ কাউন্ট ও হিস্ট্রি ফাংশন
 async def update_view_count(msg_id):
     await stats_collection.update_one({"msg_id": msg_id}, {"$inc": {"views": 1}}, upsert=True)
 
@@ -327,15 +314,13 @@ def generate_collage_thumbnail(video_path, message_id):
         return None
 
 # ====================================================================
-#                       ৫. কমান্ডস (Original Details Intact)
+#                       ৫. কমান্ডস (Admin + Tools)
 # ====================================================================
 
-# --- ১. স্টার্ট কমান্ড ---
 @app.on_message(filters.command("start"))
 async def start_command_handler(client, message):
     await add_user_to_db(message.from_user.id)
     
-    # ফোর্স সাবস্ক্রাইব চেকিং
     if SYSTEM_CONFIG["force_sub"] and SYSTEM_CONFIG["public_channel"]:
         is_joined = await check_force_sub(client, message.from_user.id)
         if not is_joined:
@@ -353,9 +338,7 @@ async def start_command_handler(client, message):
             except Exception as e:
                 logger.error(f"Invite Link Error: {e}")
 
-    # ডেলিভারি রিকোয়েস্ট লজিক
     if len(message.command) > 1:
-        # এন্টি-স্প্যাম চেকিং
         user_id = message.from_user.id
         now = time.time()
         if user_id in user_last_request and now - user_last_request[user_id] < 5:
@@ -365,26 +348,27 @@ async def start_command_handler(client, message):
         asyncio.create_task(process_user_delivery(client, message))
         return
     
-    # অ্যাডমিন প্যানেল এবং সাধারণ ওয়েলকাম
     if message.from_user.id == ADMIN_ID:
         admin_menu = (
-            "👑 **Ultimate Admin Panel (v6.0 - Smart)**\n\n"
+            "👑 **Ultimate Admin Panel (v7.0 - Premium)**\n\n"
             "📡 **Channel Setup:**\n"
-            "`/setsource -100xxxx` - Source Channel\n"
-            "`/setpublic -100xxxx` - Public Channel\n"
-            "`/setlog -100xxxx` - Log Channel\n\n"
+            "`/setsource` & `/setpublic` & `/setlog`\n\n"
             "⚙️ **System Config:**\n"
             "`/setinterval 30` - Post Delay\n"
             "`/autodelete 60` - Auto Delete\n"
             "`/settutorial link` - Set Tutorial\n"
-            "`/setshortener domain key` - Set Shortener\n"
             "`/protect on/off` - Content Protection\n\n"
-            "🛡 **VPN & Ad Link Config:**\n"
-            "`/setadlink https://...` - Set Direct Link\n"
-            "`/setvpn on/off` - Turn On/Off VPN Forcing\n\n"
+            "🔗 **Shortener Toggle:**\n"
+            "`/shortener on` or `off` (Turn URL Shortener ON/OFF)\n"
+            "`/setshortener domain.com api_key`\n\n"
+            "🛡 **VPN & Multi-Ad Link System:**\n"
+            "`/setvpn on` or `off` (Force VPN ON/OFF)\n"
+            "`/addadlink link` (Add Multiple Links)\n"
+            "`/adlinks` (View All Links)\n"
+            "`/clearadlinks` (Delete All Links)\n\n"
             "🛠 **Smart Controls:**\n"
-            "`/admin` - Visual Dashboard (New)\n"
-            "`/broadcast` - Send to All (with Progress)\n"
+            "`/admin` - Visual Dashboard\n"
+            "`/broadcast` - Send to All\n"
             "`/stats` - Stats / `/clearqueue` - Clear Queue"
         )
         await message.reply(admin_menu)
@@ -395,7 +379,6 @@ async def start_command_handler(client, message):
             "Use `/search movie_name` to find videos."
         )
 
-# --- ২. অ্যাডমিন ড্যাশবোর্ড ---
 @app.on_message(filters.command("admin") & filters.user(ADMIN_ID))
 async def admin_dashboard_handler(client, message):
     buttons = [[InlineKeyboardButton("📊 System Stats", callback_data="stats_live"),
@@ -404,92 +387,64 @@ async def admin_dashboard_handler(client, message):
     ]
     await message.reply("🎮 **Enterprise Smart Dashboard**", reply_markup=InlineKeyboardMarkup(buttons))
 
-# --- ৩. চ্যানেল ও অ্যাডমিন কমান্ডস ---
+# --- অরিজিনাল কমান্ডগুলো ---
 @app.on_message(filters.command("setsource") & filters.user(ADMIN_ID))
 async def set_source_channel(client, message):
-    try:
-        if len(message.command) < 2: return await message.reply("❌ Usage: `/setsource -100xxxx`")
-        channel_id = int(message.command[1])
-        await update_database_setting("source_channel", channel_id)
-        await message.reply(f"✅ **Source Channel Set:** `{channel_id}`")
-    except: await message.reply("❌ Invalid ID.")
+    if len(message.command) < 2: return await message.reply("❌ Usage: `/setsource -100xxxx`")
+    await update_database_setting("source_channel", int(message.command[1]))
+    await message.reply(f"✅ Source Set: `{message.command[1]}`")
 
 @app.on_message(filters.command("setpublic") & filters.user(ADMIN_ID))
 async def set_public_channel(client, message):
-    try:
-        if len(message.command) < 2: return await message.reply("❌ Usage: `/setpublic -100xxxx`")
-        channel_id = int(message.command[1])
-        await update_database_setting("public_channel", channel_id)
-        await message.reply(f"✅ **Public Channel Set:** `{channel_id}`")
-    except: await message.reply("❌ Invalid ID.")
+    if len(message.command) < 2: return await message.reply("❌ Usage: `/setpublic -100xxxx`")
+    await update_database_setting("public_channel", int(message.command[1]))
+    await message.reply(f"✅ Public Set: `{message.command[1]}`")
 
 @app.on_message(filters.command("setlog") & filters.user(ADMIN_ID))
 async def set_log_channel(client, message):
-    try:
-        if len(message.command) < 2: return await message.reply("❌ Usage: `/setlog -100xxxx`")
-        channel_id = int(message.command[1])
-        await update_database_setting("log_channel", channel_id)
-        await message.reply(f"✅ **Log Channel Set:** `{channel_id}`")
-        await send_log_message("✅ **Log Channel Connected Successfully!**")
-    except: await message.reply("❌ Invalid ID.")
+    if len(message.command) < 2: return await message.reply("❌ Usage: `/setlog -100xxxx`")
+    await update_database_setting("log_channel", int(message.command[1]))
+    await message.reply("✅ Log Channel Set!")
 
 @app.on_message(filters.command("setinterval") & filters.user(ADMIN_ID))
 async def set_post_interval(client, message):
-    try:
-        seconds = int(message.command[1])
-        await update_database_setting("post_interval", seconds)
-        await message.reply(f"⏱ **Interval Updated:** `{seconds} seconds`")
-    except: await message.reply("❌ Use number only.")
+    await update_database_setting("post_interval", int(message.command[1]))
+    await message.reply(f"⏱ Interval Updated: `{message.command[1]}s`")
 
 @app.on_message(filters.command("autodelete") & filters.user(ADMIN_ID))
 async def set_auto_delete(client, message):
-    try:
-        seconds = int(message.command[1])
-        await update_database_setting("auto_delete_time", seconds)
-        await message.reply(f"⏳ **Auto Delete:** `{seconds} seconds`")
-    except: await message.reply("❌ Use number only.")
+    await update_database_setting("auto_delete_time", int(message.command[1]))
+    await message.reply(f"⏳ Auto Delete: `{message.command[1]}s`")
 
 @app.on_message(filters.command("settutorial") & filters.user(ADMIN_ID))
 async def set_tutorial_link(client, message):
-    try:
-        if len(message.command) < 2: return await message.reply("❌ Usage: `/settutorial https://link...`")
-        link = message.command[1]
-        await update_database_setting("tutorial_link", link)
-        await message.reply(f"✅ **Tutorial Link Set:**\n`{link}`")
-    except: await message.reply("❌ Error setting link.")
+    await update_database_setting("tutorial_link", message.command[1])
+    await message.reply("✅ Tutorial Link Set!")
 
 @app.on_message(filters.command("protect") & filters.user(ADMIN_ID))
 async def set_content_protection(client, message):
+    state = message.command[1].lower() == "on"
+    await update_database_setting("protect_content", state)
+    await message.reply(f"🛡 Protection: `{'ON' if state else 'OFF'}`")
+
+# --- লিংক শর্টনার অন/অফ এবং কনফিগ ---
+@app.on_message(filters.command("shortener") & filters.user(ADMIN_ID))
+async def toggle_shortener(client, message):
     try:
         state = message.command[1].lower() == "on"
-        await update_database_setting("protect_content", state)
-        await message.reply(f"🛡 **Protection:** `{'ON' if state else 'OFF'}`")
-    except: await message.reply("❌ Usage: `/protect on` or `off`")
+        await update_database_setting("shortener_active", state)
+        await message.reply(f"🔗 **Shortener System:** `{'ON 🟢' if state else 'OFF 🔴'}`")
+    except:
+        await message.reply("❌ Usage: `/shortener on` or `/shortener off`")
 
 @app.on_message(filters.command("setshortener") & filters.user(ADMIN_ID))
 async def set_shortener_config(client, message):
-    try:
-        if len(message.command) < 3:
-            return await message.reply("❌ Usage: `/setshortener domain.com api_key`")
-        domain = message.command[1]
-        key = message.command[2]
-        await update_database_setting("shortener_domain", domain)
-        await update_database_setting("shortener_key", key)
-        await message.reply(f"🔗 **Shortener Configured!**\nDomain: `{domain}`")
-    except: await message.reply("❌ Error.")
+    if len(message.command) < 3: return await message.reply("❌ Usage: `/setshortener domain api_key`")
+    await update_database_setting("shortener_domain", message.command[1])
+    await update_database_setting("shortener_key", message.command[2])
+    await message.reply(f"🔗 Shortener Configured: `{message.command[1]}`")
 
-# --- নতুন: ভিপিএন এবং ডাইরেক্ট লিংক কনফিগারেশন ---
-@app.on_message(filters.command("setadlink") & filters.user(ADMIN_ID))
-async def set_direct_ad_link(client, message):
-    try:
-        if len(message.command) < 2: 
-            return await message.reply("❌ Usage: `/setadlink https://your-direct-link.com`")
-        link = message.command[1]
-        await update_database_setting("direct_ad_link", link)
-        await message.reply(f"🔗 **Direct Ad Link Set Successfully!**\nLink: `{link}`")
-    except Exception as e: 
-        await message.reply(f"❌ Error: {e}")
-
+# --- মাল্টিপল ডাইরেক্ট লিংক ও ভিপিএন সিস্টেম ---
 @app.on_message(filters.command("setvpn") & filters.user(ADMIN_ID))
 async def set_vpn_enforcement(client, message):
     try:
@@ -499,33 +454,49 @@ async def set_vpn_enforcement(client, message):
     except: 
         await message.reply("❌ Usage: `/setvpn on` or `/setvpn off`")
 
-# --- ৫. টুলস কমান্ডস (স্মার্ট ব্রডকাস্ট সহ) ---
+@app.on_message(filters.command("addadlink") & filters.user(ADMIN_ID))
+async def add_ad_link(client, message):
+    if len(message.command) < 2: return await message.reply("❌ Usage: `/addadlink https://...`")
+    link = message.command[1]
+    links = SYSTEM_CONFIG["direct_ad_links"]
+    if link not in links:
+        links.append(link)
+        await update_database_setting("direct_ad_links", links)
+    await message.reply(f"✅ **Ad Link Added!** Total Links Active: `{len(links)}`")
+
+@app.on_message(filters.command("adlinks") & filters.user(ADMIN_ID))
+async def view_ad_links(client, message):
+    links = SYSTEM_CONFIG["direct_ad_links"]
+    if not links: return await message.reply("📭 No ad links added. Use `/addadlink`")
+    txt = "🔗 **Your Direct Ad Links:**\n\n"
+    for i, l in enumerate(links, 1):
+        txt += f"{i}. `{l}`\n"
+    await message.reply(txt)
+
+@app.on_message(filters.command("clearadlinks") & filters.user(ADMIN_ID))
+async def clear_ad_links(client, message):
+    await update_database_setting("direct_ad_links",[])
+    await message.reply("🗑 **All Ad Links Cleared!**")
+
+# --- টুলস ---
 @app.on_message(filters.command("stats") & filters.user(ADMIN_ID))
 async def show_stats(client, message):
     users = await users_collection.count_documents({})
     queue = await queue_collection.count_documents({})
-    msg = (
-        f"📊 **SYSTEM STATISTICS**\n\n"
-        f"👥 **Total Users:** `{users}`\n"
-        f"📥 **Queue Pending:** `{queue}` Videos\n"
-        f"⏱ **Interval:** `{SYSTEM_CONFIG['post_interval']}s`"
-    )
+    msg = (f"📊 **SYSTEM STATS**\n👥 Users: `{users}`\n📥 Pending Queue: `{queue}`\n🔗 Ad Links Active: `{len(SYSTEM_CONFIG['direct_ad_links'])}`")
     await message.reply(msg)
 
 @app.on_message(filters.command("clearqueue") & filters.user(ADMIN_ID))
 async def clear_queue_command(client, message):
     await queue_collection.delete_many({})
-    await message.reply("🗑 **Queue Cleared!** All pending videos removed.")
+    await message.reply("🗑 **Queue Cleared!**")
 
 @app.on_message(filters.command("broadcast") & filters.user(ADMIN_ID) & filters.reply)
 async def broadcast_message(client, message):
     status_msg = await message.reply("📢 **Broadcast Started...**")
     all_users = users_collection.find({})
-    
     total_users = await users_collection.count_documents({})
-    success = 0
-    blocked = 0
-    deleted = 0
+    success = blocked = deleted = 0
     
     async for user in all_users:
         try:
@@ -542,67 +513,43 @@ async def broadcast_message(client, message):
             deleted += 1
             await users_collection.delete_one({"_id": user["_id"]})
         except: pass
-        
         if (success + blocked + deleted) % 20 == 0:
-            done = success + blocked + deleted
-            percentage = (done / total_users) * 100
-            await status_msg.edit(f"📢 **Broadcasting...**\nProgress: {round(percentage, 2)}%\nSent: {success}")
+            await status_msg.edit(f"📢 **Broadcasting...**\nProgress: {round(((success+blocked+deleted)/total_users)*100, 2)}%\nSent: {success}")
         
-    await status_msg.edit(
-        f"✅ **Broadcast Completed!**\n\n"
-        f"sent: `{success}`\n"
-        f"blocked: `{blocked}`\n"
-        f"deleted: `{deleted}`"
-    )
+    await status_msg.edit(f"✅ **Broadcast Completed!**\nSent: `{success}` | Blocked: `{blocked}` | Deleted: `{deleted}`")
 
-# --- ৬. সার্চ এবং হিস্ট্রি ---
 @app.on_message(filters.command("search"))
 async def search_handler(client, message):
-    if len(message.command) < 2:
-        return await message.reply("🔍 Usage: `/search movie_name`")
-    
+    if len(message.command) < 2: return await message.reply("🔍 Usage: `/search movie_name`")
     query = message.text.split(None, 1)[1]
     results = await queue_collection.find({"caption": {"$regex": query, "$options": "i"}}).limit(5).to_list(None)
-    
-    if not results:
-        return await message.reply("❌ No matches found in recent queue.")
-    
-    txt = "🔍 **Search Results Found:**\n\n"
-    for res in results:
-        txt += f"🎬 {res['caption'][:50]}... \n🔗 `/start {res['msg_id']}`\n\n"
+    if not results: return await message.reply("❌ No matches found.")
+    txt = "🔍 **Search Results:**\n\n"
+    for res in results: txt += f"🎬 {res['caption'][:50]}... \n🔗 `/start {res['msg_id']}`\n\n"
     await message.reply(txt)
 
 @app.on_message(filters.command("history"))
 async def history_handler(client, message):
     data = await history_collection.find_one({"_id": message.from_user.id})
-    if not data or "history" not in data:
-        return await message.reply("📭 You haven't requested any videos yet.")
-    
+    if not data or "history" not in data: return await message.reply("📭 You haven't requested any videos yet.")
     txt = "⏳ **Your Last Requested Videos:**\n\n"
-    for item in reversed(data["history"]):
-        txt += f"✅ {item['title']}\n"
+    for item in reversed(data["history"]): txt += f"✅ {item['title']}\n"
     await message.reply(txt)
 
-
 # ====================================================================
-#              🔥 কলব্যাক হ্যান্ডলার (অ্যাডমিন প্যানেল + ভিপিএন চেক) 🔥
+#              🔥 কলব্যাক হ্যান্ডলার (অ্যাডমিন + ভিপিএন চেক) 🔥
 # ====================================================================
 
 @app.on_callback_query()
 async def callback_handler(client, query: CallbackQuery):
     data = query.data
     
-    # অ্যাডমিন প্যানেল লজিক
     if data == "stats_live":
-        users = await users_collection.count_documents({})
-        queue = await queue_collection.count_documents({})
-        await query.answer(f"Users: {users} | Pending Queue: {queue}", show_alert=True)
+        await query.answer("Working smooth!", show_alert=True)
     elif data == "close_admin":
         await query.message.delete()
         
-    # ===============================================
     # 🔥 ভিপিএন এবং ডাইরেক্ট লিংক ভেরিফিকেশন লজিক 🔥
-    # ===============================================
     elif data.startswith("get_vid_"):
         video_id = int(data.split("_")[2])
         user_id = query.from_user.id
@@ -610,7 +557,6 @@ async def callback_handler(client, query: CallbackQuery):
         if user_id in user_ad_status and user_ad_status[user_id]["video_id"] == video_id:
             elapsed_time = time.time() - user_ad_status[user_id]["time"]
             
-            # ১৫ সেকেন্ডের আগে ক্লিক করলে অ্যালার্ট
             if elapsed_time < 15:
                 await query.answer(
                     "⚠️ Verification Failed!\n\n"
@@ -619,26 +565,19 @@ async def callback_handler(client, query: CallbackQuery):
                     show_alert=True
                 )
             else:
-                # ১৫ সেকেন্ড পার হলে ভিডিও দিয়ে দিবে
                 await query.answer("✅ Verification Successful! Sending video...", show_alert=False)
                 await query.message.delete()
-                
-                # সরাসরি ভিডিও ডেলিভারি কল
                 await process_user_delivery(client, query.message, is_callback=True, target_msg_id=video_id, target_user_id=user_id)
-                
-                # মেমোরি থেকে ডাটা ডিলিট
                 del user_ad_status[user_id]
         else:
             await query.answer("❌ Session expired! Please request the video link again using the bot.", show_alert=True)
 
-
 # ====================================================================
-#              ৬. ইউজার ভিডিও ডেলিভারি (UPDATED WITH VPN LOGIC)
+#              ৬. ইউজার ভিডিও ডেলিভারি (UPDATED)
 # ====================================================================
 
 async def process_user_delivery(client, message, is_callback=False, target_msg_id=None, target_user_id=None):
     try:
-        # মেসেজ সোর্স এবং ইউজার আইডি ডিটেক্ট করা
         msg_id = target_msg_id if is_callback else int(message.command[1])
         user_id = target_user_id if is_callback else message.from_user.id
         chat_id = message.chat.id
@@ -647,11 +586,13 @@ async def process_user_delivery(client, message, is_callback=False, target_msg_i
             return await client.send_message(chat_id, "❌ **Bot Maintenance Mode.** (Source not set)")
         
         # ==========================================
-        # 🔥 ভিপিএন এবং ডাইরেক্ট লিংক সিস্টেম (নতুন ডিজাইন) 🔥
+        # 🔥 ভিপিএন এবং মাল্টি-ডাইরেক্ট লিংক সিস্টেম 🔥
         # ==========================================
-        if SYSTEM_CONFIG["vpn_enforce"] and SYSTEM_CONFIG["direct_ad_link"] and not is_callback:
-            # ইউজারকে টাইমস্ট্যাম্প দিয়ে মার্ক করে রাখা হলো
+        if SYSTEM_CONFIG["vpn_enforce"] and len(SYSTEM_CONFIG["direct_ad_links"]) > 0 and not is_callback:
             user_ad_status[user_id] = {"time": time.time(), "video_id": msg_id}
+            
+            # র‍্যান্ডম একটি লিংক বাছাই করা হলো
+            selected_ad_link = random.choice(SYSTEM_CONFIG["direct_ad_links"])
             
             vpn_text = (
                 "🛑 **অ্যাক্সেস ডিনাইড! (VPN REQUIRED)** 🛑\n\n"
@@ -663,32 +604,25 @@ async def process_user_delivery(client, message, is_callback=False, target_msg_i
                 "*(⚠️ সঠিক দেশের ভিপিএন ছাড়া এবং লিংকে ১৫-২০ সেকেন্ড ওয়েট না করলে ভিডিও কোনোভাবেই ওপেন হবে না!)*"
             )
             
-            buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🛡️ Download Free VPN (Play Store)", url="https://play.google.com/store/apps/details?id=com.fast.free.unblock.secure.vpn")],[InlineKeyboardButton("🌐 1. Verify VPN & IP (Click Here)", url=SYSTEM_CONFIG["direct_ad_link"])],[InlineKeyboardButton("✅ 2. I have connected & Download Video", callback_data=f"get_vid_{msg_id}")]
+            buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🛡️ Download Free VPN (Play Store)", url="https://play.google.com/store/apps/details?id=com.fast.free.unblock.secure.vpn")],[InlineKeyboardButton("🌐 1. Verify VPN & IP (Click Here)", url=selected_ad_link)],[InlineKeyboardButton("✅ 2. I have connected & Download Video", callback_data=f"get_vid_{msg_id}")]
             ])
             
-            # মেসেজের রিপ্লাই পাঠানো হচ্ছে
-            if hasattr(message, "reply"):
-                return await message.reply(vpn_text, reply_markup=buttons)
-            else:
-                return await client.send_message(chat_id, vpn_text, reply_markup=buttons)
+            if hasattr(message, "reply"): return await message.reply(vpn_text, reply_markup=buttons)
+            else: return await client.send_message(chat_id, vpn_text, reply_markup=buttons)
 
         # ==========================================
         # অরিজিনাল ভিডিও ডেলিভারি লজিক
         # ==========================================
         status_msg = await client.send_message(chat_id, "🔄 **Processing your request...**")
-        
         source_msg = await client.get_messages(int(SYSTEM_CONFIG["source_channel"]), msg_id)
         
         if not source_msg or (not source_msg.video and not source_msg.document):
             return await status_msg.edit("❌ **Error:** Video not found or deleted from server.")
         
-        # স্মার্ট ফিচার: ভিউ ও হিস্ট্রি আপডেট ও টাইটেল ক্লিন
         raw_title = source_msg.caption or "Exclusive Video"
         clean_user_title = re.sub(r'(https?://\S+|www\.\S+|t\.me/\S+|@\w+)', '', raw_title)
         clean_user_title = re.sub(r'\s+', ' ', clean_user_title).strip()
-        
-        if len(clean_user_title) < 2:
-            clean_user_title = "Exclusive Video"
+        if len(clean_user_title) < 2: clean_user_title = "Exclusive Video"
 
         await update_view_count(msg_id)
         await add_user_history(user_id, msg_id, clean_user_title)
@@ -703,14 +637,10 @@ async def process_user_delivery(client, message, is_callback=False, target_msg_i
         
         if SYSTEM_CONFIG["auto_delete_time"] > 0:
             warning = await client.send_message(chat_id, f"⏳ **This video will be auto-deleted in {SYSTEM_CONFIG['auto_delete_time']} seconds!**")
-            
             async def delete_after_delay(m1, m2, delay):
                 await asyncio.sleep(delay)
-                try:
-                    await m1.delete()
-                    await m2.delete()
+                try: await m1.delete(); await m2.delete()
                 except: pass
-            
             asyncio.create_task(delete_after_delay(sent_msg, warning, SYSTEM_CONFIG["auto_delete_time"]))
             
     except Exception as e:
@@ -727,28 +657,19 @@ async def process_user_delivery(client, message, is_callback=False, target_msg_i
 @app.on_message(filters.channel & (filters.video | filters.document))
 async def source_channel_listener(client, message):
     if SYSTEM_CONFIG["source_channel"] and message.chat.id == int(SYSTEM_CONFIG["source_channel"]):
-        
         is_video = message.video or (message.document and message.document.mime_type and "video" in message.document.mime_type)
-        
         if is_video:
             exists = await queue_collection.find_one({"msg_id": message.id})
             if not exists:
-                await queue_collection.insert_one({
-                    "msg_id": message.id,
-                    "caption": message.caption or "Exclusive Video",
-                    "date": message.date
-                })
-                logger.info(f"📥 New Video Added to Queue: ID {message.id}")
-                await send_log_message(f"📥 **New Video Queued!**\nID: `{message.id}`")
+                await queue_collection.insert_one({"msg_id": message.id,"caption": message.caption or "Exclusive Video","date": message.date})
+                logger.info(f"📥 New Video Queued: {message.id}")
 
 # ====================================================================
 #              ৮. মেইন প্রসেসিং ইঞ্জিন
 # ====================================================================
 
 async def processing_engine():
-    if not os.path.exists("downloads"):
-        os.makedirs("downloads")
-        
+    if not os.path.exists("downloads"): os.makedirs("downloads")
     logger.info("🚀 Processing Engine Started Successfully...")
     
     while True:
@@ -761,13 +682,9 @@ async def processing_engine():
             
             if task:
                 msg_id = task["msg_id"]
-                logger.info(f"🔨 Processing Task ID: {msg_id}")
-                
                 try:
                     source_msg = await app.get_messages(int(SYSTEM_CONFIG["source_channel"]), msg_id)
-                    
                     if not source_msg:
-                        logger.error("❌ Message deleted from source channel.")
                         await queue_collection.delete_one({"_id": task["_id"]})
                         continue
                     
@@ -783,23 +700,21 @@ async def processing_engine():
                         else: quality_label = "SD Quality"
 
                     video_path = f"downloads/video_{msg_id}.mp4"
-                    logger.info("⬇️ Downloading video for thumbnail generation...")
                     await app.download_media(source_msg, file_name=video_path)
                     
                     thumb_path = await asyncio.to_thread(generate_collage_thumbnail, video_path, msg_id)
                     
                     bot_username = (await app.get_me()).username
                     deep_link = f"https://t.me/{bot_username}?start={msg_id}"
+                    
+                    # 🔴 Shortener Switch Logic works here 🔴
                     final_link = await shorten_url_api(deep_link)
                     
                     views_count = await get_views(msg_id)
                     new_spicy_title = random.choice(ATTRACTIVE_TITLES)
                     
                     final_caption = SYSTEM_CONFIG["caption_template"].format(
-                        title=new_spicy_title,
-                        quality=quality_label,
-                        size=size_readable,
-                        views=views_count
+                        title=new_spicy_title, quality=quality_label, size=size_readable, views=views_count
                     )
                     
                     buttons_list = [[InlineKeyboardButton("📥 DOWNLOAD / WATCH VIDEO 📥", url=final_link)]]
@@ -811,13 +726,8 @@ async def processing_engine():
                     
                     if thumb_path and os.path.exists(thumb_path):
                         await app.send_photo(chat_id=dest_chat, photo=thumb_path, caption=final_caption, reply_markup=buttons)
-                        log_status = "✅ Posted with Smart Thumbnail"
                     else:
                         await app.send_message(chat_id=dest_chat, text=final_caption, reply_markup=buttons)
-                        log_status = "⚠️ Posted without Thumbnail"
-                    
-                    logger.info(f"✅ Success: {msg_id} | Title: {new_spicy_title}")
-                    await send_log_message(f"{log_status}\n🆔 Msg ID: `{msg_id}`\n🏷 Title: `{new_spicy_title}`")
                     
                 except Exception as e:
                     logger.error(f"❌ Processing Error: {e}")
@@ -829,8 +739,7 @@ async def processing_engine():
                 except: pass
                 gc.collect()
             
-            wait_time = SYSTEM_CONFIG.get("post_interval", 30)
-            await asyncio.sleep(wait_time)
+            await asyncio.sleep(SYSTEM_CONFIG.get("post_interval", 30))
             
         except Exception as e:
             logger.critical(f"🛑 Critical Loop Error: {e}")
@@ -845,7 +754,6 @@ async def main():
     await app.start()
     await load_database_settings()
     asyncio.create_task(processing_engine())
-    
     logger.info("🤖 AutoBot Enterprise SMART VERSION is now FULLY OPERATIONAL...")
     await idle()
     await app.stop()
