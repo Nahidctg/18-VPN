@@ -33,6 +33,9 @@ ADMIN_ID = 8172129114  # আপনার ইউজার আইডি
 # মঙ্গোডিবি (ডাটাবেস) কানেকশন
 MONGO_URL = "mongodb+srv://mewayo8672:mewayo8672@cluster0.ozhvczp.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
+# 🔴 খুব জরুরি: আপনার ওয়েব সার্ভারের আসল ডোমেইন লিংক (শেষে স্ল্যাশ / দিবেন না) 🔴
+YOUR_SERVER_URL = "https://your-bot-domain.onrender.com"
+
 # লগিং কনফিগারেশন
 logging.basicConfig(
     level=logging.INFO,
@@ -109,7 +112,8 @@ ATTRACTIVE_TITLES =[
 
 # এন্টি-স্প্যাম ট্র্যাকার ও অ্যাড ট্র্যাকার
 user_last_request = {}
-user_ad_status = {}
+user_ad_status = {}  # ইউজার প্রতি ভিডিওর অ্যাড স্ট্যাটাস সেভ রাখার মেমোরি
+IP_CACHE = {}        # ফ্রি API লিমিট বাঁচানোর জন্য IP মেমোরি
 
 # পাইরোগ্রাম ক্লায়েন্ট সেটআপ
 app = Client(
@@ -121,17 +125,105 @@ app = Client(
 )
 
 # ====================================================================
-#                       ২. ওয়েব সার্ভার
+#              ২. ওয়েব সার্ভার (Real VPN Check + Direct Ad Link)
 # ====================================================================
+
+async def get_country_code(ip):
+    """ইউজারের আসল দেশ বের করার ফাংশন"""
+    if ip in IP_CACHE:
+        return IP_CACHE[ip]
+
+    country = "UNKNOWN"
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"https://api.country.is/{ip}", timeout=5) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    country = data.get("country", "")
+    except Exception as e:
+        pass
+    
+    if country == "UNKNOWN":
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"http://ip-api.com/json/{ip}", timeout=5) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        country = data.get("countryCode", "")
+        except Exception as e:
+            pass
+
+    if country != "UNKNOWN":
+        IP_CACHE[ip] = country
+        
+    return country
 
 async def web_server_handler(request):
     """সিম্পল ওয়েব পেজ রেসপন্স"""
-    return web.Response(text="✅ Bot is Running in Ultimate Smart Mode with Multi-Link Support!")
+    return web.Response(text="✅ Bot is Running in Ultimate Smart Mode with Real VPN Checking & Multi-Link Support!")
+
+async def verify_ip_handler(request):
+    """ভিপিএন ভেরিফিকেশন এবং অ্যাড রিডাইরেক্ট রাউট"""
+    user_id = request.query.get("user_id")
+    vid = request.query.get("vid")
+    
+    if not user_id or not vid:
+        return web.Response(text="❌ Invalid Link!", status=400)
+
+    user_id = int(user_id)
+    vid = int(vid)
+
+    client_ip = request.headers.get("X-Forwarded-For", request.remote)
+    if client_ip:
+        client_ip = client_ip.split(",")[0].strip()
+
+    country_code = await get_country_code(client_ip)
+
+    # বাংলাদেশ বা ইন্ডিয়া হলে ডাইরেক্ট ব্লক (অ্যাড পেজে যাবে না)
+    if country_code in ["BD", "IN"]:
+        html_content = """
+        <html>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <body style="background-color:#121212; color:white; text-align:center; padding:30px; font-family:Arial;">
+            <h1 style="color:#ff4d4d;">🛑 ACCESS DENIED!</h1>
+            <p>You are accessing from <b>Bangladesh or India</b>.</p>
+            <p style="color:#ffcc00;">⚠️ This video is <b>BLOCKED</b> in your region!</p>
+            <br>
+            <p><b>How to unlock:</b></p>
+            <p>1. Connect a VPN to <b>USA</b> or <b>UK</b>.</p>
+            <p>2. Go back to the bot and click "Verify VPN" again.</p>
+        </body>
+        </html>
+        """
+        return web.Response(text=html_content, content_type="text/html")
+    else:
+        # ভিপিএন সঠিক থাকলে বটের মেমোরিতে এই ভিডিওর জন্য তাকে ভেরিফাইড করে দিবে
+        user_ad_status[user_id] = {"video_id": vid, "status": "verified", "time": time.time()}
+        
+        # ইউজারের ডাইরেক্ট অ্যাড লিংক থাকলে অটোমেটিক সেখানে রিডাইরেক্ট করে দিবে! (আপনার ইনকাম হবে)
+        links = SYSTEM_CONFIG.get("direct_ad_links",[])
+        if links:
+            ad_link = random.choice(links)
+            raise web.HTTPFound(ad_link) # ব্রাউজারকে ডাইরেক্ট অ্যাড লিংকে পাঠিয়ে দিবে
+        else:
+            # যদি বটের সেটিংসে কোনো অ্যাড লিংক অ্যাড করা না থাকে
+            success_html = """
+            <html>
+            <body style="background-color:#121212; color:white; text-align:center; padding:30px; font-family:Arial;">
+                <h1 style="color:#00ff00;">✅ VPN Verified!</h1>
+                <p>Now go back to Telegram and click "Download Video".</p>
+            </body>
+            </html>
+            """
+            return web.Response(text=success_html, content_type="text/html")
 
 async def start_web_server():
     """aiohttp ওয়েব সার্ভার রানার"""
     app_runner = web.Application()
-    app_runner.add_routes([web.get('/', web_server_handler)])
+    app_runner.add_routes([
+        web.get('/', web_server_handler),
+        web.get('/verify', verify_ip_handler)
+    ])
     runner = web.AppRunner(app_runner)
     await runner.setup()
     
@@ -141,7 +233,7 @@ async def start_web_server():
     logger.info(f"🌍 Web Server started on port {port}")
 
 # ====================================================================
-#                       ৩. হেল্পার ফাংশনস
+#                       ৩. হেল্পার ফাংশনস (অপরিবর্তিত)
 # ====================================================================
 
 async def load_database_settings():
@@ -162,7 +254,7 @@ async def load_database_settings():
         SYSTEM_CONFIG["protect_content"] = settings.get("protect_content", False)
         SYSTEM_CONFIG["tutorial_link"] = settings.get("tutorial_link", None)
         SYSTEM_CONFIG["force_sub"] = settings.get("force_sub", True)
-        SYSTEM_CONFIG["shortener_list"] = settings.get("shortener_list", [])
+        SYSTEM_CONFIG["shortener_list"] = settings.get("shortener_list",[])
         SYSTEM_CONFIG["watermark_text"] = settings.get("watermark_text", "@Enterprise_Bots")
         
         SYSTEM_CONFIG["direct_ad_links"] = settings.get("direct_ad_links",[])
@@ -630,26 +722,30 @@ async def callback_handler(client, query: CallbackQuery):
         video_id = int(data.split("_")[2])
         user_id = query.from_user.id
         
-        if user_id in user_ad_status and user_ad_status[user_id]["video_id"] == video_id:
-            elapsed_time = time.time() - user_ad_status[user_id]["time"]
-            
-            if elapsed_time < 15:
-                await query.answer(
-                    "⚠️ Verification Failed!\n\n"
-                    "আপনি লিংকে ক্লিক করে ১৫-২০ সেকেন্ড অপেক্ষা করেননি অথবা আপনার আইপি ভেরিফাই হয়নি।\n\n"
-                    "দয়া করে 'Verify VPN & IP' লিংকে ক্লিক করুন, ১৫ সেকেন্ড অপেক্ষা করুন, তারপর আবার চেষ্টা করুন।", 
-                    show_alert=True
-                )
-            else:
+        # ইউজারের স্ট্যাটাস চেক করা হচ্ছে
+        status_data = user_ad_status.get(user_id)
+        
+        if status_data and status_data["video_id"] == video_id:
+            if status_data.get("status") == "verified":
                 await query.answer("✅ Verification Successful! Sending video...", show_alert=False)
                 await query.message.delete()
-                await process_user_delivery(client, query.message, is_callback=True, target_msg_id=video_id, target_user_id=user_id)
+                
+                # 🔴 ভিডিও দেওয়ার পর স্ট্যাটাস ডিলিট করে দেওয়া হলো, যাতে পরের ভিডিওর জন্য আবার ভিপিএন ও অ্যাড দেখতে হয়!
                 del user_ad_status[user_id]
+                
+                await process_user_delivery(client, query.message, is_callback=True, target_msg_id=video_id, target_user_id=user_id)
+            else:
+                await query.answer(
+                    "⚠️ Verification Failed!\n\n"
+                    "আপনি এখনো ভিপিএন দিয়ে ভেরিফাই করেননি অথবা অ্যাড লিংকে ক্লিক করেননি।\n\n"
+                    "দয়া করে '1. Verify VPN & Watch Ad' লিংকে ক্লিক করুন, ভিপিএন চেক পাস করুন, তারপর আবার চেষ্টা করুন।", 
+                    show_alert=True
+                )
         else:
             await query.answer("❌ Session expired! Please request the video link again using the bot.", show_alert=True)
 
 # ====================================================================
-#              ৬. ইউজার ভিডিও ডেলিভারি (UPDATED WITH REGION BLOCK BLUFF)
+#              ৬. ইউজার ভিডিও ডেলিভারি (Strict VPN Per Video)
 # ====================================================================
 
 async def process_user_delivery(client, message, is_callback=False, target_msg_id=None, target_user_id=None):
@@ -662,31 +758,27 @@ async def process_user_delivery(client, message, is_callback=False, target_msg_i
             return await client.send_message(chat_id, "❌ **Bot Maintenance Mode.** (Source not set)")
         
         # ==========================================
-        # 🔥 বাংলাদেশ/ইন্ডিয়া ব্লক ব্লাফ + ভিপিএন সিস্টেম 🔥
+        # 🔥 ১০০% রিয়েল ভিপিএন + ডাইরেক্ট অ্যাড লিংক চেকিং 🔥
         # ==========================================
-        if SYSTEM_CONFIG["vpn_enforce"] and len(SYSTEM_CONFIG["direct_ad_links"]) > 0 and not is_callback:
-            user_ad_status[user_id] = {"time": time.time(), "video_id": msg_id}
-            selected_ad_link = random.choice(SYSTEM_CONFIG["direct_ad_links"])
+        if SYSTEM_CONFIG["vpn_enforce"] and not is_callback:
             
-            # আপনার সাইকোলজিক্যাল ব্রেনওয়াশ মেসেজ
+            verify_link = f"{YOUR_SERVER_URL}/verify?user_id={user_id}&vid={msg_id}"
+            
+            # ইউজারকে Pending স্ট্যাটাসে রাখা হলো
+            user_ad_status[user_id] = {"video_id": msg_id, "status": "pending", "time": time.time()}
+            
             vpn_text = (
-                "🛑 **ERROR: REGION BLOCKED!** 🛑\n\n"
-                "⚠️ **সার্ভার অ্যালার্ট:** বাংলাদেশ (🇧🇩) এবং ইন্ডিয়া (🇮🇳) থেকে এই ভিডিওটি ওপেন করা সম্পূর্ণ ব্লক করা হয়েছে!\n\n"
-                "ভিডিওটি দেখতে বা ডাউনলোড করতে চাইলে আপনাকে অবশ্যই নিচের নিয়ম মানতে হবে:\n\n"
-                "🛡️ **স্টেপ ১:** নিচের বাটন থেকে Play Store-এ গিয়ে একটি ফ্রি ভিপিএন ইন্সটল করুন।\n"
-                "🇺🇸 **স্টেপ ২:** ভিপিএন ওপেন করে **USA (আমেরিকা) বা UK** সার্ভার কানেক্ট করুন।\n"
-                "🔗 **স্টেপ ৩:** ভিপিএন কানেক্ট থাকা অবস্থায় নিচের **'🌐 1. Verify VPN & IP'** বাটনে ক্লিক করুন।\n"
-                "⏳ **স্টেপ ৪:** লিংকে গিয়ে **১৫-২০ সেকেন্ড অপেক্ষা করুন**। আপনার আইপি ভেরিফাই হলে ফিরে এসে **'✅ 2. Download Video'** বাটনে ক্লিক করুন।\n\n"
-                "*(⚠️ ভিপিএন ছাড়া লিংকে ক্লিক করলে 'Access Denied' দেখাবে এবং ভিডিও আনলক হবে না!)*"
+                "🛑 **REGION BLOCKED! VPN REQUIRED!** 🛑\n\n"
+                "⚠️ বাংলাদেশ (🇧🇩) এবং ইন্ডিয়া (🇮🇳) থেকে এই ভিডিওটি ওপেন করা সম্পূর্ণ ব্লক করা হয়েছে!\n\n"
+                "ভিডিওটি দেখতে চাইলে আপনাকে অবশ্যই নিচের নিয়ম মানতে হবে:\n\n"
+                "🇺🇸 **স্টেপ ১:** আপনার ফোনে থাকা যেকোনো ভিপিএন ওপেন করে **USA বা UK** সার্ভার কানেক্ট করুন।\n"
+                "🔗 **স্টেপ ২:** ভিপিএন কানেক্ট থাকা অবস্থায় নিচের **'🌐 1. Verify VPN & Watch Ad'** বাটনে ক্লিক করুন।\n"
+                "✅ **স্টেপ ৩:** ব্রাউজারে IP ভেরিফাই হলে একটি অ্যাড পেজ আসবে। অ্যাডটি ২-৩ সেকেন্ড দেখে বটে ফিরে আসুন।\n"
+                "📥 **স্টেপ ৪:** বটে ফিরে এসে **'✅ 2. Download Video'** বাটনে ক্লিক করুন।\n\n"
+                "*(⚠️ ভিপিএন ছাড়া লিংকে ক্লিক করলে Access Denied দেখাবে এবং ভিডিও পাবেন না!)*"
             )
             
-            buttons = InlineKeyboardMarkup([[
-                    InlineKeyboardButton("🛡️ Download Free VPN (Play Store)", url="https://play.google.com/store/apps/details?id=com.fast.free.unblock.secure.vpn")
-                ],[
-                    InlineKeyboardButton("🌐 1. Verify VPN & IP (Click Here)", url=selected_ad_link)
-                ],[
-                    InlineKeyboardButton("✅ 2. I have connected & Download Video", callback_data=f"get_vid_{msg_id}")
-                ]
+            buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🌐 1. Verify VPN & Watch Ad", url=verify_link)],[InlineKeyboardButton("✅ 2. Download Video", callback_data=f"get_vid_{msg_id}")],[InlineKeyboardButton("🛡️ Download Free VPN", url="https://play.google.com/store/apps/details?id=com.fast.free.unblock.secure.vpn")]
             ])
             
             if hasattr(message, "reply"): 
