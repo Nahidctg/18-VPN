@@ -34,7 +34,7 @@ ADMIN_ID = 7528643689  # আপনার ইউজার আইডি
 MONGO_URL = "mongodb+srv://Filetolink270:Filetolink270@cluster0.tsr3api.mongodb.net/?appName=Cluster0"
 
 # 🔴 খুব জরুরি: আপনার ওয়েব সার্ভারের আসল ডোমেইন লিংক (শেষে স্ল্যাশ / দিবেন না) 🔴
-YOUR_SERVER_URL = os.environ.get("WEB_URL", "https://your-backup-domain.onrender.com")
+YOUR_SERVER_URL = os.environ.get("WEB_URL", "https://useless-valli-nahidcrk-73a65b5b.koyeb.app")
 # লগিং কনফিগারেশন
 logging.basicConfig(
     level=logging.INFO,
