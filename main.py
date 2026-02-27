@@ -34,8 +34,7 @@ ADMIN_ID = 8172129114  # আপনার ইউজার আইডি
 MONGO_URL = "mongodb+srv://mewayo8672:mewayo8672@cluster0.ozhvczp.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
 # 🔴 খুব জরুরি: আপনার ওয়েব সার্ভারের আসল ডোমেইন লিংক (শেষে স্ল্যাশ / দিবেন না) 🔴
-YOUR_SERVER_URL = "https://your-bot-domain.onrender.com"
-
+YOUR_SERVER_URL = os.environ.get("WEB_URL", "https://your-backup-domain.onrender.com")
 # লগিং কনফিগারেশন
 logging.basicConfig(
     level=logging.INFO,
