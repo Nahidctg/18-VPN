@@ -25,13 +25,13 @@ from aiohttp import web
 # ====================================================================
 
 # আপনার টেলিগ্রাম ক্রেডেনশিয়ালস
-API_ID = 22697010
-API_HASH = "fd88d7339b0371eb2a9501d523f3e2a7"
-BOT_TOKEN = "8303315439:AAGKPEugn60XGMC7_u4pOaZPnUWkWHvXSNM"
-ADMIN_ID = 8172129114  # আপনার ইউজার আইডি
+API_ID = 28870226
+API_HASH = "a5b1ff3f75941649bf5bc159782f0f00"
+BOT_TOKEN = "8464633052:AAF78JZ5JvAhC8k9zgZRAr9N385czKQJ2LU"
+ADMIN_ID = 7528643689  # আপনার ইউজার আইডি
 
 # মঙ্গোডিবি (ডাটাবেস) কানেকশন
-MONGO_URL = "mongodb+srv://mewayo8672:mewayo8672@cluster0.ozhvczp.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+MONGO_URL = "mongodb+srv://tacine2474:tacine2474@cluster0.4c8pm.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
 # 🔴 খুব জরুরি: আপনার ওয়েব সার্ভারের আসল ডোমেইন লিংক (শেষে স্ল্যাশ / দিবেন না) 🔴
 YOUR_SERVER_URL = os.environ.get("WEB_URL", "https://your-backup-domain.onrender.com")
