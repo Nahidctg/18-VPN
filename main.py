@@ -12,7 +12,7 @@ import random
 import re  # লিংক এবং টেক্সট ক্লিন করার জন্য
 from datetime import datetime
 from pyrogram import Client, filters, idle
-from pyrogram.enums import ChatMemberStatus # 🔴 Pyrogram V2 এর জন্য যোগ করা হয়েছে
+from pyrogram.enums import ChatMemberStatus # Pyrogram V2 এর জন্য যোগ করা হয়েছে
 from pyrogram.types import (
     Message, InlineKeyboardMarkup, InlineKeyboardButton, 
     InputMediaPhoto, CallbackQuery
@@ -28,13 +28,15 @@ from aiohttp import web
 # আপনার টেলিগ্রাম ক্রেডেনশিয়ালস
 API_ID = 22697010
 API_HASH = "fd88d7339b0371eb2a9501d523f3e2a7"
-BOT_TOKEN = "8464633052:AAEaO33QeUy14LM7yNVSUvbH6uxtYkwvE7k"
-ADMIN_ID = 8172129114  # আপনার ইউজার আইডি
+BOT_TOKEN = "8303315439:AAGKPEugn60XGMC7_u4pOaZPnUWkWHvXSNM"
+
+# 🔴 এখানে আপনার আসল টেলিগ্রাম আইডি বসাতে হবে! 🔴
+ADMIN_ID = 8172129114
 
 # মঙ্গোডিবি (ডাটাবেস) কানেকশন
 MONGO_URL = "mongodb+srv://mewayo8672:mewayo8672@cluster0.ozhvczp.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
-# 🔴 Environment Variable থেকে ডোমেইন নেওয়া হবে (নিরাপত্তার জন্য) 🔴
+# Environment Variable থেকে ডোমেইন নেওয়া হবে (নিরাপত্তার জন্য)
 YOUR_SERVER_URL = os.environ.get("WEB_URL", "https://useless-valli-nahidcrk-73a65b5b.koyeb.app")
 
 # লগিং কনফিগারেশন
@@ -44,7 +46,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("AutoBot_Enterprise_Max")
 
-# 🔴 ডাটাবেস ইনিশিলাইজেশন ভেরিয়েবল (লুপ ফ্রিজ এড়াতে গ্লোবাল করা হলো)
+# ডাটাবেস ভেরিয়েবল (লুপ ফ্রিজ এড়াতে গ্লোবাল করা হলো)
 mongo_client = None
 db = None
 queue_collection = None    
@@ -112,7 +114,7 @@ user_last_request = {}
 user_ad_status = {}  
 IP_CACHE = {}        
 
-# 🔴 পাইরোগ্রাম ক্লায়েন্ট সেটআপ (in_memory=True দেওয়া হয়েছে যাতে Koyeb এ সেশন লক না হয়)
+# পাইরোগ্রাম ক্লায়েন্ট সেটআপ (in_memory=True দেওয়া হয়েছে যাতে সেশন লক না হয়)
 app = Client(
     "Enterprise_Session_Max",
     api_id=API_ID,
@@ -127,7 +129,6 @@ app = Client(
 # ====================================================================
 
 async def get_country_code(ip):
-    """ইউজারের আসল দেশ বের করার ফাংশন"""
     if ip in IP_CACHE:
         return IP_CACHE[ip]
 
@@ -157,11 +158,9 @@ async def get_country_code(ip):
     return country
 
 async def web_server_handler(request):
-    """সিম্পল ওয়েব পেজ রেসপন্স"""
     return web.Response(text="✅ AutoBot Enterprise Server is Running Successfully!")
 
 async def verify_ip_handler(request):
-    """ভিপিএন ভেরিফিকেশন এবং অ্যাড রিডাইরেক্ট রাউট"""
     user_id = request.query.get("user_id")
     vid = request.query.get("vid")
     
@@ -171,7 +170,6 @@ async def verify_ip_handler(request):
     user_id = int(user_id)
     vid = int(vid)
 
-    # ইউজারের সঠিক আইপি বের করা
     client_ip = request.headers.get("X-Forwarded-For")
     if client_ip:
         client_ip = client_ip.split(",")[0].strip()
@@ -181,8 +179,7 @@ async def verify_ip_handler(request):
     country_code = await get_country_code(client_ip)
     logger.info(f"🔍 IP Check - User: {user_id} | IP: {client_ip} | Country: {country_code}")
 
-    # বাংলাদেশ বা ইন্ডিয়া হলে ডাইরেক্ট ব্লক
-    if country_code in ["BD", "IN"]:
+    if country_code in["BD", "IN"]:
         html_content = """
         <html>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -199,7 +196,6 @@ async def verify_ip_handler(request):
         """
         return web.Response(text=html_content, content_type="text/html")
     else:
-        # ভিপিএন সঠিক থাকলে বটের মেমোরিতে ভেরিফাইড মার্ক করা হবে
         user_ad_status[user_id] = {"video_id": vid, "status": "verified", "time": time.time()}
         
         links = SYSTEM_CONFIG.get("direct_ad_links",[])
@@ -218,7 +214,6 @@ async def verify_ip_handler(request):
                 <a href="{ad_link}" style="background-color:#ff9900; color:black; padding:15px 25px; text-decoration:none; border-radius:8px; font-size:18px; font-weight:bold; display:inline-block; margin-top:20px;">▶️ WATCH AD TO UNLOCK</a>
                 <br><br>
                 <p style="color:#aaaaaa; font-size:14px; margin-top:20px;">After viewing the ad for 3 seconds, go back to Telegram and click <b>Download Video</b>.</p>
-                
                 <script>
                     setTimeout(function() {{
                         window.location.href = "{ad_link}";
@@ -240,7 +235,6 @@ async def verify_ip_handler(request):
             return web.Response(text=success_html, content_type="text/html")
 
 async def start_web_server():
-    """aiohttp ওয়েব সার্ভার রানার"""
     app_runner = web.Application()
     app_runner.add_routes([
         web.get('/', web_server_handler),
@@ -280,7 +274,6 @@ async def load_database_settings():
         SYSTEM_CONFIG["watermark_text"] = settings.get("watermark_text", "@Enterprise_Bots")
         SYSTEM_CONFIG["direct_ad_links"] = settings.get("direct_ad_links",[])
         SYSTEM_CONFIG["vpn_enforce"] = settings.get("vpn_enforce", True)
-        
         logger.info("⚙️ Settings Loaded Successfully from MongoDB.")
 
 async def update_database_setting(key, value):
@@ -310,8 +303,7 @@ async def check_force_sub(client, user_id):
         return True 
     try:
         member = await client.get_chat_member(int(SYSTEM_CONFIG["public_channel"]), user_id)
-        # 🔴 Pyrogram V2 এর জন্য Enum ব্যবহার করা হলো
-        if member.status in[ChatMemberStatus.BANNED, ChatMemberStatus.RESTRICTED]:
+        if member.status in [ChatMemberStatus.BANNED, ChatMemberStatus.RESTRICTED]:
             return False
         return True
     except UserNotParticipant:
@@ -375,7 +367,6 @@ async def add_user_history(user_id, msg_id, title):
 
 def generate_collage_thumbnail(video_path, message_id):
     thumbnail_path = f"downloads/thumb_{message_id}.jpg"
-    
     try:
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
@@ -408,7 +399,6 @@ def generate_collage_thumbnail(video_path, message_id):
                 frames.append(resized)
             else:
                 break
-        
         cap.release()
         
         if len(frames) == 4:
@@ -429,7 +419,6 @@ def generate_collage_thumbnail(video_path, message_id):
         del frames
         del collage
         gc.collect()
-        
         return thumbnail_path
 
     except Exception as e:
@@ -442,36 +431,29 @@ def generate_collage_thumbnail(video_path, message_id):
 
 @app.on_message(filters.command("start"))
 async def start_command_handler(client, message):
-    await add_user_to_db(message.from_user.id)
+    user_id = message.from_user.id
+    await add_user_to_db(user_id)
     
     if SYSTEM_CONFIG["force_sub"] and SYSTEM_CONFIG["public_channel"]:
-        is_joined = await check_force_sub(client, message.from_user.id)
+        is_joined = await check_force_sub(client, user_id)
         if not is_joined:
             try:
                 invite = await client.create_chat_invite_link(int(SYSTEM_CONFIG["public_channel"]))
                 param = message.command[1] if len(message.command) > 1 else ""
-                
-                buttons = InlineKeyboardMarkup([[InlineKeyboardButton("📢 Join Channel to Watch", url=invite.invite_link)],[InlineKeyboardButton("🔄 Refresh / Try Again", url=f"https://t.me/{client.me.username}?start={param}")]
-                ])
-                return await message.reply(
-                    "⚠️ **Access Denied!**\n\n"
-                    "You must join our official channel to access this video.",
-                    reply_markup=buttons
-                )
+                buttons = InlineKeyboardMarkup([[InlineKeyboardButton("📢 Join Channel to Watch", url=invite.invite_link)],[InlineKeyboardButton("🔄 Refresh / Try Again", url=f"https://t.me/{client.me.username}?start={param}")]])
+                return await message.reply("⚠️ **Access Denied!**\n\nYou must join our official channel to access this video.", reply_markup=buttons)
             except Exception as e:
                 logger.error(f"Invite Link Error: {e}")
 
     if len(message.command) > 1:
-        user_id = message.from_user.id
         now = time.time()
         if user_id in user_last_request and now - user_last_request[user_id] < 5:
             return await message.reply("🚫 **Wait!** Please don't spam. Wait 5 seconds between requests.")
         user_last_request[user_id] = now
-        
         asyncio.create_task(process_user_delivery(client, message))
         return
     
-    if message.from_user.id == ADMIN_ID:
+    if user_id == ADMIN_ID:
         admin_menu = (
             "👑 **Ultimate Admin Panel (v8.0 - Masterpiece)**\n\n"
             "📡 **Channel Setup:**\n"
@@ -482,13 +464,13 @@ async def start_command_handler(client, message):
             "`/settutorial link` - Set Tutorial\n"
             "`/protect on/off` - Content Protection\n\n"
             "🔗 **Shortener Toggle:**\n"
-            "`/shortener on` or `off` (Turn URL Shortener ON/OFF)\n"
+            "`/shortener on` or `off`\n"
             "`/setshortener domain.com api_key`\n\n"
             "🛡 **VPN & Multi-Ad Link System:**\n"
-            "`/setvpn on` or `off` (Force VPN ON/OFF)\n"
-            "`/addadlink link1 link2` (Add Multiple Links)\n"
-            "`/adlinks` (View All Links)\n"
-            "`/clearadlinks` (Delete All Links)\n\n"
+            "`/setvpn on` or `off`\n"
+            "`/addadlink link1 link2`\n"
+            "`/adlinks`\n"
+            "`/clearadlinks`\n\n"
             "🛠 **Smart Controls:**\n"
             "`/admin` - Visual Dashboard\n"
             "`/broadcast` - Send to All\n"
@@ -496,14 +478,19 @@ async def start_command_handler(client, message):
         )
         await message.reply(admin_menu)
     else:
+        # 🔴 আইডি ভুল হলে যেন ইউজার বুঝতে পারে তাই এখানে এই লেখাটি দেওয়া হয়েছে
         await message.reply(
-            "👋 **Hello! Welcome to AutoBot.**\n\n"
-            "Search for videos or join our channel to get latest updates.\n"
-            "Use `/search movie_name` to find videos."
+            f"👋 **Hello! Welcome to AutoBot.**\n\n"
+            f"Search for videos or join our channel to get latest updates.\n"
+            f"Use `/search movie_name` to find videos.\n\n"
+            f"*(⚠️ যদি আপনি এডমিন হয়ে থাকেন, তাহলে আপনার আসল ID হলো: `{user_id}`। কোডে ADMIN_ID এর জায়গায় এটি বসিয়ে দিন, তারপর সব কমান্ড কাজ করবে।)*"
         )
 
-@app.on_message(filters.command("admin") & filters.user(ADMIN_ID))
+@app.on_message(filters.command("admin"))
 async def admin_dashboard_handler(client, message):
+    if message.from_user.id != ADMIN_ID:
+        return await message.reply(f"❌ **Access Denied!**\n\nআপনি এডমিন নন। আপনার আসল User ID হলো: `{message.from_user.id}`\n\nদয়া করে কোডের `ADMIN_ID` পরিবর্তন করে আপনার আসল আইডি বসিয়ে দিন।")
+        
     buttons =[[
             InlineKeyboardButton("📊 System Stats", callback_data="stats_live"),
             InlineKeyboardButton("⚙️ Quick Settings", callback_data="quick_settings")
@@ -619,7 +606,6 @@ async def add_ad_link(client, message):
         if len(message.command) < 2: 
             return await message.reply("❌ Usage: `/addadlink https://link1.com https://link2.com ...`")
         
-        # স্পেস দিয়ে যতগুলো লিংক দিবে সব একসাথে নিবে
         new_links = message.command[1:]
         links = SYSTEM_CONFIG["direct_ad_links"]
         added_count = 0
@@ -753,7 +739,6 @@ async def callback_handler(client, query: CallbackQuery):
         video_id = int(data.split("_")[2])
         user_id = query.from_user.id
         
-        # ইউজারের স্ট্যাটাস চেক করা হচ্ছে
         status_data = user_ad_status.get(user_id)
         
         if status_data and status_data["video_id"] == video_id:
@@ -761,7 +746,6 @@ async def callback_handler(client, query: CallbackQuery):
                 await query.answer("✅ Verification Successful! Sending video...", show_alert=False)
                 await query.message.delete()
                 
-                # 🔴 ভিডিও দেওয়ার পর স্ট্যাটাস ডিলিট করে দেওয়া হলো, যাতে পরের ভিডিওর জন্য আবার ভিপিএন ও অ্যাড দেখতে হয়!
                 del user_ad_status[user_id]
                 
                 await process_user_delivery(client, query.message, is_callback=True, target_msg_id=video_id, target_user_id=user_id)
@@ -789,16 +773,9 @@ async def process_user_delivery(client, message, is_callback=False, target_msg_i
         if not SYSTEM_CONFIG["source_channel"]:
             return await client.send_message(chat_id, "❌ **Bot Maintenance Mode.** (Source not set)")
         
-        # ==========================================
-        # 🔥 ১০০% রিয়েল ভিপিএন + ডাইরেক্ট অ্যাড লিংক চেকিং 🔥
-        # ==========================================
         if SYSTEM_CONFIG["vpn_enforce"] and not is_callback:
-            
-            # URL এর শেষের অতিরিক্ত স্লাশ (/) রিমুভ করে সঠিক লিংক তৈরি করবে
             base_url = YOUR_SERVER_URL.rstrip('/')
             verify_link = f"{base_url}/verify?user_id={user_id}&vid={msg_id}"
-            
-            # ইউজারকে Pending স্ট্যাটাসে রাখা হলো
             user_ad_status[user_id] = {"video_id": msg_id, "status": "pending", "time": time.time()}
             
             vpn_text = (
@@ -809,7 +786,7 @@ async def process_user_delivery(client, message, is_callback=False, target_msg_i
                 "🔗 **স্টেপ ২:** ভিপিএন কানেক্ট থাকা অবস্থায় নিচের **'🌐 1. Verify VPN & Watch Ad'** বাটনে ক্লিক করুন।\n"
                 "✅ **স্টেপ ৩:** ব্রাউজারে IP ভেরিফাই হলে একটি অ্যাড পেজ আসবে। অ্যাডটি ২-৩ সেকেন্ড দেখে বটে ফিরে আসুন।\n"
                 "📥 **স্টেপ ৪:** বটে ফিরে এসে **'✅ 2. Download Video'** বাটনে ক্লিক করুন।\n\n"
-                "*(⚠️ ভিপিএন ছাড়া লিংকে ক্লিক করলে Access Denied দেখাবে এবং ভিডিও পাবেনভান না!)*"
+                "*(⚠️ ভিপিএন ছাড়া লিংকে ক্লিক করলে Access Denied দেখাবে এবং ভিডিও পাবেন না!)*"
             )
             
             buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🌐 1. Verify VPN & Watch Ad", url=verify_link)],[InlineKeyboardButton("✅ 2. Download Video", callback_data=f"get_vid_{msg_id}")],[InlineKeyboardButton("🛡️ Download Free VPN", url="https://play.google.com/store/apps/details?id=com.fast.free.unblock.secure.vpn")]
@@ -820,11 +797,7 @@ async def process_user_delivery(client, message, is_callback=False, target_msg_i
             else: 
                 return await client.send_message(chat_id, vpn_text, reply_markup=buttons)
 
-        # ==========================================
-        # অরিজিনাল ভিডিও ডেলিভারি লজিক
-        # ==========================================
         status_msg = await client.send_message(chat_id, "🔄 **Processing your request...**")
-        
         source_msg = await client.get_messages(int(SYSTEM_CONFIG["source_channel"]), msg_id)
         
         if not source_msg or (not source_msg.video and not source_msg.document):
@@ -858,7 +831,6 @@ async def process_user_delivery(client, message, is_callback=False, target_msg_i
                     await m2.delete()
                 except: 
                     pass
-            
             asyncio.create_task(delete_after_delay(sent_msg, warning, SYSTEM_CONFIG["auto_delete_time"]))
             
     except Exception as e:
@@ -896,9 +868,7 @@ async def source_channel_listener(client, message):
 # ====================================================================
 
 async def processing_engine():
-    if not os.path.exists("downloads"):
-        os.makedirs("downloads")
-        
+    os.makedirs("downloads", exist_ok=True)
     logger.info("🚀 Processing Engine Started Successfully...")
     
     while True:
@@ -940,10 +910,7 @@ async def processing_engine():
                     
                     bot_username = (await app.get_me()).username
                     deep_link = f"https://t.me/{bot_username}?start={msg_id}"
-                    
-                    # 🔴 Shortener Switch Logic works here 🔴
                     final_link = await shorten_url_api(deep_link)
-                    
                     views_count = await get_views(msg_id)
                     new_spicy_title = random.choice(ATTRACTIVE_TITLES)
                     
@@ -954,13 +921,9 @@ async def processing_engine():
                         views=views_count
                     )
                     
-                    buttons_list = [[InlineKeyboardButton("📥 DOWNLOAD / WATCH VIDEO 📥", url=final_link)]
-                    ]
-                    
-                    # 🔴 টিউটোরিয়াল বাটন যুক্ত করা হচ্ছে
+                    buttons_list = [[InlineKeyboardButton("📥 DOWNLOAD / WATCH VIDEO 📥", url=final_link)]]
                     if SYSTEM_CONFIG["tutorial_link"]:
-                        buttons_list.append([InlineKeyboardButton("ℹ️ How to Download", url=SYSTEM_CONFIG["tutorial_link"])]
-                        )
+                        buttons_list.append([InlineKeyboardButton("ℹ️ How to Download", url=SYSTEM_CONFIG["tutorial_link"])])
                     
                     buttons = InlineKeyboardMarkup(buttons_list)
                     dest_chat = int(SYSTEM_CONFIG["public_channel"])
@@ -978,13 +941,10 @@ async def processing_engine():
                 except Exception as e:
                     logger.error(f"❌ Processing Error: {e}")
                 
-                # ক্লিনআপ
                 await queue_collection.delete_one({"_id": task["_id"]})
                 try:
-                    if os.path.exists(video_path): 
-                        os.remove(video_path)
-                    if thumb_path and os.path.exists(thumb_path): 
-                        os.remove(thumb_path)
+                    if os.path.exists(video_path): os.remove(video_path)
+                    if thumb_path and os.path.exists(thumb_path): os.remove(thumb_path)
                 except: 
                     pass
                 gc.collect()
@@ -1001,7 +961,6 @@ async def processing_engine():
 # ====================================================================
 
 async def main():
-    # 🔴 ডাটাবেসকে লুপের ভেতর ইনিশিয়ালাইজ করা হলো (বট হ্যাং হওয়ার মূল সমাধান)
     global mongo_client, db, queue_collection, config_collection, users_collection, history_collection, stats_collection
     
     mongo_client = AsyncIOMotorClient(MONGO_URL)
@@ -1022,5 +981,7 @@ async def main():
     await app.stop()
 
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
