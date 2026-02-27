@@ -28,7 +28,7 @@ from aiohttp import web
 # আপনার টেলিগ্রাম ক্রেডেনশিয়ালস
 API_ID = 22697010
 API_HASH = "fd88d7339b0371eb2a9501d523f3e2a7"
-BOT_TOKEN = "8303315439:AAGKPEugn60XGMC7_u4pOaZPnUWkWHvXSNM"
+BOT_TOKEN = "8464633052:AAEaO33QeUy14LM7yNVSUvbH6uxtYkwvE7k"
 ADMIN_ID = 8172129114  # আপনার ইউজার আইডি
 
 # মঙ্গোডিবি (ডাটাবেস) কানেকশন
