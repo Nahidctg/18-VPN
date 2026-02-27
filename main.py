@@ -51,13 +51,13 @@ users_collection = db["users_list"]
 history_collection = db["user_history"] # স্মার্ট ফিচার: ইউজারের হিস্ট্রি
 stats_collection = db["video_stats"]    # স্মার্ট ফিচার: ভিউ কাউন্ট
 
-# গ্লোবাল কনফিগ ও সুন্দর ক্যাপশন টেম্পলেট (Updated)
+# গ্লোবাল কনফিগ ও সুন্দর ক্যাপশন টেম্পলেট
 SYSTEM_CONFIG = {
     "source_channel": None,
     "public_channel": None,
     "log_channel": None,          
     "post_interval": 30,          
-    "shortener_active": False,    # নতুন: লিংক শর্টনার অন/অফ করার সুইচ
+    "shortener_active": False,    # লিংক শর্টনার অন/অফ করার সুইচ
     "shortener_domain": None,
     "shortener_key": None,
     "shortener_list":[],         
@@ -66,8 +66,8 @@ SYSTEM_CONFIG = {
     "tutorial_link": None,        
     "force_sub": True,            
     "watermark_text": "@Enterprise_Bots",
-    "direct_ad_links":[],        # নতুন: মাল্টিপল ডাইরেক্ট লিংক রাখার লিস্ট
-    "vpn_enforce": False,         # নতুন: ভিপিএন সিস্টেম অন/অফ
+    "direct_ad_links":[],        # মাল্টিপল ডাইরেক্ট লিংক রাখার লিস্ট
+    "vpn_enforce": False,         # ভিপিএন সিস্টেম অন/অফ
     "caption_template": "🔥 **{title}** 🔥\n\n🎬 **Quality:** `{quality}`\n📦 **Size:** `{size}`\n👁 **Views:** `{views}`\n\n🚀 **Fastest Download Link**\n\n📢 *Join our channel for more exclusive content!*"
 }
 
@@ -107,9 +107,9 @@ ATTRACTIVE_TITLES =[
     "🔞 Premium Leaked Content Free 🔞"
 ]
 
-# এন্টি-স্প্যাম ট্র্যাকার ও অ্যাড ট্র্যাকার (স্মার্ট ফিচার)
+# এন্টি-স্প্যাম ট্র্যাকার ও অ্যাড ট্র্যাকার
 user_last_request = {}
-user_ad_status = {} # ইউজারের অ্যাড ক্লিক ট্র্যাক করার জন্য (নতুন)
+user_ad_status = {}
 
 # পাইরোগ্রাম ক্লায়েন্ট সেটআপ
 app = Client(
@@ -145,14 +145,12 @@ async def start_web_server():
 # ====================================================================
 
 async def load_database_settings():
-    """বট স্টার্ট হলে ডাটাবেস থেকে সব সেটিং মেমোরিতে লোড করবে"""
     settings = await config_collection.find_one({"_id": "global_settings"})
     
     if not settings:
         await config_collection.insert_one({"_id": "global_settings"})
         logger.info("⚙️ New Settings Created in Database.")
     else:
-        # ডাটাবেস থেকে ভ্যালু নিয়ে কনফিগে বসানো
         SYSTEM_CONFIG["source_channel"] = settings.get("source_channel")
         SYSTEM_CONFIG["public_channel"] = settings.get("public_channel")
         SYSTEM_CONFIG["log_channel"] = settings.get("log_channel")
@@ -167,14 +165,12 @@ async def load_database_settings():
         SYSTEM_CONFIG["shortener_list"] = settings.get("shortener_list", [])
         SYSTEM_CONFIG["watermark_text"] = settings.get("watermark_text", "@Enterprise_Bots")
         
-        # নতুন ভিপিএন ও মাল্টি-লিংক সেটিং লোড
-        SYSTEM_CONFIG["direct_ad_links"] = settings.get("direct_ad_links", [])
+        SYSTEM_CONFIG["direct_ad_links"] = settings.get("direct_ad_links",[])
         SYSTEM_CONFIG["vpn_enforce"] = settings.get("vpn_enforce", False)
         
         logger.info("⚙️ Settings Loaded Successfully from MongoDB.")
 
 async def update_database_setting(key, value):
-    """কোনো সেটিং চেঞ্জ হলে সাথে সাথে ডাটাবেস আপডেট করবে"""
     await config_collection.update_one(
         {"_id": "global_settings"},
         {"$set": {key: value}},
@@ -183,12 +179,10 @@ async def update_database_setting(key, value):
     SYSTEM_CONFIG[key] = value
 
 async def add_user_to_db(user_id):
-    """নতুন ইউজারকে ডাটাবেসে এড করবে"""
     if not await users_collection.find_one({"_id": user_id}):
         await users_collection.insert_one({"_id": user_id})
 
 async def send_log_message(text):
-    """লগ চ্যানেলে বটের স্ট্যাটাস বা এরর মেসেজ পাঠাবে"""
     if SYSTEM_CONFIG["log_channel"]:
         try:
             await app.send_message(
@@ -199,7 +193,6 @@ async def send_log_message(text):
             logger.error(f"Failed to send log: {e}")
 
 async def check_force_sub(client, user_id):
-    """ইউজার পাবলিক চ্যানেলে জয়েন আছে কিনা চেক করবে"""
     if not SYSTEM_CONFIG["force_sub"] or not SYSTEM_CONFIG["public_channel"]:
         return True 
     try:
@@ -213,7 +206,6 @@ async def check_force_sub(client, user_id):
         return True  
 
 def get_readable_size(size_in_bytes):
-    """বাইট থেকে রিডেবল সাইজ (স্মার্ট ফিচার)"""
     if size_in_bytes == 0: 
         return "0B"
     size_name = ("B", "KB", "MB", "GB", "TB")
@@ -223,9 +215,8 @@ def get_readable_size(size_in_bytes):
     return f"{s} {size_name[i]}"
 
 async def shorten_url_api(long_url):
-    """লিংক শর্টনার সিস্টেম (সুইচ অন থাকলে কাজ করবে)"""
     if not SYSTEM_CONFIG.get("shortener_active", False):
-        return long_url  # শর্টনার অফ থাকলে অরিজিনাল লিংক রিটার্ন করবে
+        return long_url
         
     if SYSTEM_CONFIG["shortener_list"]:
         shortener = random.choice(SYSTEM_CONFIG["shortener_list"])
@@ -339,7 +330,6 @@ def generate_collage_thumbnail(video_path, message_id):
 async def start_command_handler(client, message):
     await add_user_to_db(message.from_user.id)
     
-    # ফোর্স সাবস্ক্রাইব চেকিং
     if SYSTEM_CONFIG["force_sub"] and SYSTEM_CONFIG["public_channel"]:
         is_joined = await check_force_sub(client, message.from_user.id)
         if not is_joined:
@@ -357,9 +347,7 @@ async def start_command_handler(client, message):
             except Exception as e:
                 logger.error(f"Invite Link Error: {e}")
 
-    # ডেলিভারি রিকোয়েস্ট লজিক
     if len(message.command) > 1:
-        # এন্টি-স্প্যাম চেকিং
         user_id = message.from_user.id
         now = time.time()
         if user_id in user_last_request and now - user_last_request[user_id] < 5:
@@ -369,10 +357,9 @@ async def start_command_handler(client, message):
         asyncio.create_task(process_user_delivery(client, message))
         return
     
-    # অ্যাডমিন প্যানেল এবং সাধারণ ওয়েলকাম
     if message.from_user.id == ADMIN_ID:
         admin_menu = (
-            "👑 **Ultimate Admin Panel (v7.0 - Premium)**\n\n"
+            "👑 **Ultimate Admin Panel (v8.0 - Masterpiece)**\n\n"
             "📡 **Channel Setup:**\n"
             "`/setsource` & `/setpublic` & `/setlog`\n\n"
             "⚙️ **System Config:**\n"
@@ -414,8 +401,6 @@ async def admin_dashboard_handler(client, message):
         ]
     ]
     await message.reply("🎮 **Enterprise Smart Dashboard**", reply_markup=InlineKeyboardMarkup(buttons))
-
-# --- অরিজিনাল চ্যানেল কমান্ডগুলো ---
 
 @app.on_message(filters.command("setsource") & filters.user(ADMIN_ID))
 async def set_source_channel(client, message):
@@ -485,8 +470,6 @@ async def set_content_protection(client, message):
     except: 
         await message.reply("❌ Usage: `/protect on` or `off`")
 
-# --- লিংক শর্টনার অন/অফ এবং কনফিগ ---
-
 @app.on_message(filters.command("shortener") & filters.user(ADMIN_ID))
 async def toggle_shortener(client, message):
     try:
@@ -506,8 +489,6 @@ async def set_shortener_config(client, message):
         await message.reply(f"🔗 **Shortener Configured:** `{message.command[1]}`")
     except Exception as e:
         await message.reply(f"❌ Error: {e}")
-
-# --- মাল্টিপল ডাইরেক্ট লিংক ও ভিপিএন সিস্টেম ---
 
 @app.on_message(filters.command("setvpn") & filters.user(ADMIN_ID))
 async def set_vpn_enforcement(client, message):
@@ -547,8 +528,6 @@ async def view_ad_links(client, message):
 async def clear_ad_links(client, message):
     await update_database_setting("direct_ad_links",[])
     await message.reply("🗑 **All Ad Links Cleared!**")
-
-# --- টুলস ---
 
 @app.on_message(filters.command("stats") & filters.user(ADMIN_ID))
 async def show_stats(client, message):
@@ -647,9 +626,6 @@ async def callback_handler(client, query: CallbackQuery):
     elif data == "close_admin":
         await query.message.delete()
         
-    # ===============================================
-    # 🔥 ভিপিএন এবং ডাইরেক্ট লিংক ভেরিফিকেশন লজিক 🔥
-    # ===============================================
     elif data.startswith("get_vid_"):
         video_id = int(data.split("_")[2])
         user_id = query.from_user.id
@@ -660,54 +636,48 @@ async def callback_handler(client, query: CallbackQuery):
             if elapsed_time < 15:
                 await query.answer(
                     "⚠️ Verification Failed!\n\n"
-                    "আপনি লিংকে ক্লিক করে ১৫-২০ সেকেন্ড অপেক্ষা করেননি।\n\n"
+                    "আপনি লিংকে ক্লিক করে ১৫-২০ সেকেন্ড অপেক্ষা করেননি অথবা আপনার আইপি ভেরিফাই হয়নি।\n\n"
                     "দয়া করে 'Verify VPN & IP' লিংকে ক্লিক করুন, ১৫ সেকেন্ড অপেক্ষা করুন, তারপর আবার চেষ্টা করুন।", 
                     show_alert=True
                 )
             else:
                 await query.answer("✅ Verification Successful! Sending video...", show_alert=False)
                 await query.message.delete()
-                # সরাসরি ভিডিও ডেলিভারি কল
                 await process_user_delivery(client, query.message, is_callback=True, target_msg_id=video_id, target_user_id=user_id)
-                # মেমোরি থেকে ডাটা ডিলিট
                 del user_ad_status[user_id]
         else:
             await query.answer("❌ Session expired! Please request the video link again using the bot.", show_alert=True)
 
 # ====================================================================
-#              ৬. ইউজার ভিডিও ডেলিভারি (UPDATED WITH VPN)
+#              ৬. ইউজার ভিডিও ডেলিভারি (UPDATED WITH REGION BLOCK BLUFF)
 # ====================================================================
 
 async def process_user_delivery(client, message, is_callback=False, target_msg_id=None, target_user_id=None):
     try:
-        # মেসেজ সোর্স এবং ইউজার আইডি ডিটেক্ট করা
         msg_id = target_msg_id if is_callback else int(message.command[1])
         user_id = target_user_id if is_callback else message.from_user.id
-        
-        # Callback query থেকে আসলে message.chat.id ব্যবহার করা যাবে না সরাসরি
         chat_id = user_id if is_callback else message.chat.id
         
         if not SYSTEM_CONFIG["source_channel"]:
             return await client.send_message(chat_id, "❌ **Bot Maintenance Mode.** (Source not set)")
         
         # ==========================================
-        # 🔥 ভিপিএন এবং মাল্টি-ডাইরেক্ট লিংক সিস্টেম 🔥
+        # 🔥 বাংলাদেশ/ইন্ডিয়া ব্লক ব্লাফ + ভিপিএন সিস্টেম 🔥
         # ==========================================
         if SYSTEM_CONFIG["vpn_enforce"] and len(SYSTEM_CONFIG["direct_ad_links"]) > 0 and not is_callback:
-            # ইউজারকে টাইমস্ট্যাম্প দিয়ে মার্ক করে রাখা হলো
             user_ad_status[user_id] = {"time": time.time(), "video_id": msg_id}
-            
-            # র‍্যান্ডম একটি লিংক বাছাই করা হলো
             selected_ad_link = random.choice(SYSTEM_CONFIG["direct_ad_links"])
             
+            # আপনার সাইকোলজিক্যাল ব্রেনওয়াশ মেসেজ
             vpn_text = (
-                "🛑 **অ্যাক্সেস ডিনাইড! (VPN REQUIRED)** 🛑\n\n"
-                "🔥 **ভিডিওটি দেখতে নিচের স্টেপগুলো ফলো করুন:**\n\n"
-                "🛡️ **স্টেপ ১:** নিচের 'Download Free VPN' বাটনে ক্লিক করে Play Store থেকে ভিপিএন ইন্সটল করুন।\n\n"
-                "🇺🇸 **স্টেপ ২:** ভিপিএন ওপেন করে **USA (আমেরিকা) বা UK** সার্ভার কানেক্ট করুন।\n\n"
-                "🔗 **স্টেপ ৩:** ভিপিএন কানেক্ট করে এসে নিচের **'🌐 1. Verify VPN & IP'** বাটনে ক্লিক করুন।\n\n"
-                "⏳ **স্টেপ ৪:** লিংকে গিয়ে **১৫-২০ সেকেন্ড অপেক্ষা করুন**। তারপর টেলিগ্রামে ফিরে এসে **'✅ 2. Download Video'** বাটনে ক্লিক করলেই ভিডিও পেয়ে যাবেন!\n\n"
-                "*(⚠️ সঠিক দেশের ভিপিএন ছাড়া এবং লিংকে ১৫-২০ সেকেন্ড ওয়েট না করলে ভিডিও কোনোভাবেই ওপেন হবে না!)*"
+                "🛑 **ERROR: REGION BLOCKED!** 🛑\n\n"
+                "⚠️ **সার্ভার অ্যালার্ট:** বাংলাদেশ (🇧🇩) এবং ইন্ডিয়া (🇮🇳) থেকে এই ভিডিওটি ওপেন করা সম্পূর্ণ ব্লক করা হয়েছে!\n\n"
+                "ভিডিওটি দেখতে বা ডাউনলোড করতে চাইলে আপনাকে অবশ্যই নিচের নিয়ম মানতে হবে:\n\n"
+                "🛡️ **স্টেপ ১:** নিচের বাটন থেকে Play Store-এ গিয়ে একটি ফ্রি ভিপিএন ইন্সটল করুন।\n"
+                "🇺🇸 **স্টেপ ২:** ভিপিএন ওপেন করে **USA (আমেরিকা) বা UK** সার্ভার কানেক্ট করুন।\n"
+                "🔗 **স্টেপ ৩:** ভিপিএন কানেক্ট থাকা অবস্থায় নিচের **'🌐 1. Verify VPN & IP'** বাটনে ক্লিক করুন।\n"
+                "⏳ **স্টেপ ৪:** লিংকে গিয়ে **১৫-২০ সেকেন্ড অপেক্ষা করুন**। আপনার আইপি ভেরিফাই হলে ফিরে এসে **'✅ 2. Download Video'** বাটনে ক্লিক করুন।\n\n"
+                "*(⚠️ ভিপিএন ছাড়া লিংকে ক্লিক করলে 'Access Denied' দেখাবে এবং ভিডিও আনলক হবে না!)*"
             )
             
             buttons = InlineKeyboardMarkup([[
@@ -734,7 +704,6 @@ async def process_user_delivery(client, message, is_callback=False, target_msg_i
         if not source_msg or (not source_msg.video and not source_msg.document):
             return await status_msg.edit("❌ **Error:** Video not found or deleted from server.")
         
-        # স্মার্ট ফিচার: ভিউ ও হিস্ট্রি আপডেট ও টাইটেল ক্লিন
         raw_title = source_msg.caption or "Exclusive Video"
         clean_user_title = re.sub(r'(https?://\S+|www\.\S+|t\.me/\S+|@\w+)', '', raw_title)
         clean_user_title = re.sub(r'\s+', ' ', clean_user_title).strip()
@@ -781,7 +750,6 @@ async def process_user_delivery(client, message, is_callback=False, target_msg_i
 
 @app.on_message(filters.channel & (filters.video | filters.document))
 async def source_channel_listener(client, message):
-    """সোর্স চ্যানেলে নতুন ভিডিও আসলে অটোমেটিক কিউতে নিবে"""
     if SYSTEM_CONFIG["source_channel"] and message.chat.id == int(SYSTEM_CONFIG["source_channel"]):
         
         is_video = message.video or (message.document and message.document.mime_type and "video" in message.document.mime_type)
@@ -802,7 +770,6 @@ async def source_channel_listener(client, message):
 # ====================================================================
 
 async def processing_engine():
-    """ব্যাকগ্রাউন্ডে সবসময় চলতে থাকা ইঞ্জিন"""
     if not os.path.exists("downloads"):
         os.makedirs("downloads")
         
@@ -907,16 +874,9 @@ async def processing_engine():
 # ====================================================================
 
 async def main():
-    # ওয়েব সার্ভার ব্যাকগ্রাউন্ডে চালু
     asyncio.create_task(start_web_server())
-    
-    # বট স্টার্ট
     await app.start()
-    
-    # সেটিংস লোড
     await load_database_settings()
-    
-    # প্রসেসিং ইঞ্জিন চালু
     asyncio.create_task(processing_engine())
     
     logger.info("🤖 AutoBot Enterprise SMART VERSION is now FULLY OPERATIONAL...")
