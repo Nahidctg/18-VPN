@@ -25,16 +25,18 @@ from aiohttp import web
 # ====================================================================
 
 # আপনার টেলিগ্রাম ক্রেডেনশিয়ালস
-API_ID = 28870226
-API_HASH = "a5b1ff3f75941649bf5bc159782f0f00"
-BOT_TOKEN = "8464633052:AAF78JZ5JvAhC8k9zgZRAr9N385czKQJ2LU"
-ADMIN_ID = 7528643689  # আপনার ইউজার আইডি
+API_ID = 22697010
+API_HASH = "fd88d7339b0371eb2a9501d523f3e2a7"
+BOT_TOKEN = "8303315439:AAGKPEugn60XGMC7_u4pOaZPnUWkWHvXSNM"
+ADMIN_ID = 8172129114  # আপনার ইউজার আইডি
 
 # মঙ্গোডিবি (ডাটাবেস) কানেকশন
-MONGO_URL = "mongodb+srv://Filetolink270:Filetolink270@cluster0.tsr3api.mongodb.net/?appName=Cluster0"
+MONGO_URL = "mongodb+srv://mewayo8672:mewayo8672@cluster0.ozhvczp.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
-# 🔴 খুব জরুরি: আপনার ওয়েব সার্ভারের আসল ডোমেইন লিংক (শেষে স্ল্যাশ / দিবেন না) 🔴
+# 🔴 Environment Variable থেকে ডোমেইন নেওয়া হবে (নিরাপত্তার জন্য) 🔴
+# আপনি Koyeb/Render এর Environment Variables এ "WEB_URL" নামে আপনার ডোমেইন অ্যাড করবেন।
 YOUR_SERVER_URL = os.environ.get("WEB_URL", "https://useless-valli-nahidcrk-73a65b5b.koyeb.app")
+
 # লগিং কনফিগারেশন
 logging.basicConfig(
     level=logging.INFO,
@@ -46,20 +48,20 @@ logger = logging.getLogger("AutoBot_Enterprise_Max")
 mongo_client = AsyncIOMotorClient(MONGO_URL)
 db = mongo_client["Enterprise_Bot_DB"]
 
-# কালেকশন সমূহ (অরিজিনাল + নতুন)
+# কালেকশন সমূহ
 queue_collection = db["video_queue"]    
 config_collection = db["bot_settings"]  
 users_collection = db["users_list"]     
-history_collection = db["user_history"] # স্মার্ট ফিচার: ইউজারের হিস্ট্রি
-stats_collection = db["video_stats"]    # স্মার্ট ফিচার: ভিউ কাউন্ট
+history_collection = db["user_history"] 
+stats_collection = db["video_stats"]    
 
-# গ্লোবাল কনফিগ ও সুন্দর ক্যাপশন টেম্পলেট
+# গ্লোবাল কনফিগ ও ক্যাপশন টেম্পলেট
 SYSTEM_CONFIG = {
     "source_channel": None,
     "public_channel": None,
     "log_channel": None,          
     "post_interval": 30,          
-    "shortener_active": False,    # লিংক শর্টনার অন/অফ করার সুইচ
+    "shortener_active": False,    
     "shortener_domain": None,
     "shortener_key": None,
     "shortener_list":[],         
@@ -68,14 +70,12 @@ SYSTEM_CONFIG = {
     "tutorial_link": None,        
     "force_sub": True,            
     "watermark_text": "@Enterprise_Bots",
-    "direct_ad_links":[],        # মাল্টিপল ডাইরেক্ট লিংক রাখার লিস্ট
-    "vpn_enforce": False,         # ভিপিএন সিস্টেম অন/অফ
+    "direct_ad_links":[],        
+    "vpn_enforce": True,          # ভিপিএন সিস্টেম অন
     "caption_template": "🔥 **{title}** 🔥\n\n🎬 **Quality:** `{quality}`\n📦 **Size:** `{size}`\n👁 **Views:** `{views}`\n\n🚀 **Fastest Download Link**\n\n📢 *Join our channel for more exclusive content!*"
 }
 
-# ====================================================================
-#             🔥🔥 কাস্টম আকর্ষণীয় টাইটেল লিস্ট 🔥🔥
-# ====================================================================
+# কাস্টম আকর্ষণীয় টাইটেল লিস্ট
 ATTRACTIVE_TITLES =[
     "🔥 New Viral Video 2026 🔞",
     "✨ Exclusive Private Video Leaked 📹",
@@ -109,10 +109,10 @@ ATTRACTIVE_TITLES =[
     "🔞 Premium Leaked Content Free 🔞"
 ]
 
-# এন্টি-স্প্যাম ট্র্যাকার ও অ্যাড ট্র্যাকার
+# মেমোরি ক্যাশ
 user_last_request = {}
-user_ad_status = {}  # ইউজার প্রতি ভিডিওর অ্যাড স্ট্যাটাস সেভ রাখার মেমোরি
-IP_CACHE = {}        # ফ্রি API লিমিট বাঁচানোর জন্য IP মেমোরি
+user_ad_status = {}  
+IP_CACHE = {}        
 
 # পাইরোগ্রাম ক্লায়েন্ট সেটআপ
 app = Client(
@@ -159,7 +159,7 @@ async def get_country_code(ip):
 
 async def web_server_handler(request):
     """সিম্পল ওয়েব পেজ রেসপন্স"""
-    return web.Response(text="✅ Bot is Running in Ultimate Smart Mode with Real VPN Checking & Multi-Link Support!")
+    return web.Response(text="✅ AutoBot Enterprise Server is Running Successfully!")
 
 async def verify_ip_handler(request):
     """ভিপিএন ভেরিফিকেশন এবং অ্যাড রিডাইরেক্ট রাউট"""
@@ -172,13 +172,17 @@ async def verify_ip_handler(request):
     user_id = int(user_id)
     vid = int(vid)
 
-    client_ip = request.headers.get("X-Forwarded-For", request.remote)
+    # ইউজারের সঠিক আইপি বের করা
+    client_ip = request.headers.get("X-Forwarded-For")
     if client_ip:
         client_ip = client_ip.split(",")[0].strip()
+    else:
+        client_ip = request.remote
 
     country_code = await get_country_code(client_ip)
+    logger.info(f"🔍 IP Check - User: {user_id} | IP: {client_ip} | Country: {country_code}")
 
-    # বাংলাদেশ বা ইন্ডিয়া হলে ডাইরেক্ট ব্লক (অ্যাড পেজে যাবে না)
+    # বাংলাদেশ বা ইন্ডিয়া হলে ডাইরেক্ট ব্লক
     if country_code in ["BD", "IN"]:
         html_content = """
         <html>
@@ -196,16 +200,36 @@ async def verify_ip_handler(request):
         """
         return web.Response(text=html_content, content_type="text/html")
     else:
-        # ভিপিএন সঠিক থাকলে বটের মেমোরিতে এই ভিডিওর জন্য তাকে ভেরিফাইড করে দিবে
+        # ভিপিএন সঠিক থাকলে বটের মেমোরিতে ভেরিফাইড মার্ক করা হবে
         user_ad_status[user_id] = {"video_id": vid, "status": "verified", "time": time.time()}
         
-        # ইউজারের ডাইরেক্ট অ্যাড লিংক থাকলে অটোমেটিক সেখানে রিডাইরেক্ট করে দিবে! (আপনার ইনকাম হবে)
         links = SYSTEM_CONFIG.get("direct_ad_links",[])
         if links:
             ad_link = random.choice(links)
-            raise web.HTTPFound(ad_link) # ব্রাউজারকে ডাইরেক্ট অ্যাড লিংকে পাঠিয়ে দিবে
+            success_html = f"""
+            <html>
+            <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <meta http-equiv="refresh" content="3;url={ad_link}">
+            </head>
+            <body style="background-color:#121212; color:white; text-align:center; padding:40px; font-family:Arial;">
+                <h1 style="color:#00ff00;">✅ VPN Verified!</h1>
+                <p>Please wait... redirecting to our sponsor.</p>
+                <br><br>
+                <a href="{ad_link}" style="background-color:#ff9900; color:black; padding:15px 25px; text-decoration:none; border-radius:8px; font-size:18px; font-weight:bold; display:inline-block; margin-top:20px;">▶️ WATCH AD TO UNLOCK</a>
+                <br><br>
+                <p style="color:#aaaaaa; font-size:14px; margin-top:20px;">After viewing the ad for 3 seconds, go back to Telegram and click <b>Download Video</b>.</p>
+                
+                <script>
+                    setTimeout(function() {{
+                        window.location.href = "{ad_link}";
+                    }}, 3000);
+                </script>
+            </body>
+            </html>
+            """
+            return web.Response(text=success_html, content_type="text/html")
         else:
-            # যদি বটের সেটিংসে কোনো অ্যাড লিংক অ্যাড করা না থাকে
             success_html = """
             <html>
             <body style="background-color:#121212; color:white; text-align:center; padding:30px; font-family:Arial;">
@@ -232,7 +256,7 @@ async def start_web_server():
     logger.info(f"🌍 Web Server started on port {port}")
 
 # ====================================================================
-#                       ৩. হেল্পার ফাংশনস (অপরিবর্তিত)
+#                       ৩. হেল্পার ফাংশনস
 # ====================================================================
 
 async def load_database_settings():
@@ -255,9 +279,8 @@ async def load_database_settings():
         SYSTEM_CONFIG["force_sub"] = settings.get("force_sub", True)
         SYSTEM_CONFIG["shortener_list"] = settings.get("shortener_list",[])
         SYSTEM_CONFIG["watermark_text"] = settings.get("watermark_text", "@Enterprise_Bots")
-        
         SYSTEM_CONFIG["direct_ad_links"] = settings.get("direct_ad_links",[])
-        SYSTEM_CONFIG["vpn_enforce"] = settings.get("vpn_enforce", False)
+        SYSTEM_CONFIG["vpn_enforce"] = settings.get("vpn_enforce", True)
         
         logger.info("⚙️ Settings Loaded Successfully from MongoDB.")
 
@@ -288,7 +311,7 @@ async def check_force_sub(client, user_id):
         return True 
     try:
         member = await client.get_chat_member(int(SYSTEM_CONFIG["public_channel"]), user_id)
-        if member.status in ["banned", "kicked"]:
+        if member.status in["banned", "kicked"]:
             return False
         return True
     except UserNotParticipant:
@@ -463,7 +486,7 @@ async def start_command_handler(client, message):
             "`/setshortener domain.com api_key`\n\n"
             "🛡 **VPN & Multi-Ad Link System:**\n"
             "`/setvpn on` or `off` (Force VPN ON/OFF)\n"
-            "`/addadlink link` (Add Multiple Links)\n"
+            "`/addadlink link1 link2` (Add Multiple Links)\n"
             "`/adlinks` (View All Links)\n"
             "`/clearadlinks` (Delete All Links)\n\n"
             "🛠 **Smart Controls:**\n"
@@ -548,7 +571,7 @@ async def set_tutorial_link(client, message):
         if len(message.command) < 2: return await message.reply("❌ Usage: `/settutorial https://link...`")
         link = message.command[1]
         await update_database_setting("tutorial_link", link)
-        await message.reply(f"✅ **Tutorial Link Set:**\n`{link}`")
+        await message.reply(f"✅ **Tutorial Link Set:**\n`{link}`\n\n(It will now appear as 'ℹ️ How to Download' button on posts)")
     except: 
         await message.reply("❌ Error setting link.")
 
@@ -594,13 +617,22 @@ async def set_vpn_enforcement(client, message):
 async def add_ad_link(client, message):
     try:
         if len(message.command) < 2: 
-            return await message.reply("❌ Usage: `/addadlink https://...`")
-        link = message.command[1]
+            return await message.reply("❌ Usage: `/addadlink https://link1.com https://link2.com ...`")
+        
+        # স্পেস দিয়ে যতগুলো লিংক দিবে সব একসাথে নিবে
+        new_links = message.command[1:]
         links = SYSTEM_CONFIG["direct_ad_links"]
-        if link not in links:
-            links.append(link)
+        added_count = 0
+        
+        for link in new_links:
+            if link not in links:
+                links.append(link)
+                added_count += 1
+                
+        if added_count > 0:
             await update_database_setting("direct_ad_links", links)
-        await message.reply(f"✅ **Ad Link Added!** Total Links Active: `{len(links)}`")
+            
+        await message.reply(f"✅ **{added_count} Ad Links Added!**\nTotal Links Active: `{len(links)}`")
     except Exception as e:
         await message.reply(f"❌ Error: {e}")
 
@@ -736,8 +768,9 @@ async def callback_handler(client, query: CallbackQuery):
             else:
                 await query.answer(
                     "⚠️ Verification Failed!\n\n"
-                    "আপনি এখনো ভিপিএন দিয়ে ভেরিফাই করেননি অথবা অ্যাড লিংকে ক্লিক করেননি।\n\n"
-                    "দয়া করে '1. Verify VPN & Watch Ad' লিংকে ক্লিক করুন, ভিপিএন চেক পাস করুন, তারপর আবার চেষ্টা করুন।", 
+                    "১. আপনি 'Verify VPN' লিংকে ক্লিক করে ব্রাউজারে যাননি।\n"
+                    "২. অথবা আপনার ভিপিএন ঠিকমতো কাজ করছে না (লোকেশন বাংলাদেশ দেখাচ্ছে)।\n\n"
+                    "অনুগ্রহ করে লিংকে ক্লিক করে ব্রাউজারে অ্যাড পেজটি ওপেন করুন, তারপর এখানে এসে ক্লিক করুন।", 
                     show_alert=True
                 )
         else:
@@ -761,7 +794,9 @@ async def process_user_delivery(client, message, is_callback=False, target_msg_i
         # ==========================================
         if SYSTEM_CONFIG["vpn_enforce"] and not is_callback:
             
-            verify_link = f"{YOUR_SERVER_URL}/verify?user_id={user_id}&vid={msg_id}"
+            # URL এর শেষের অতিরিক্ত স্লাশ (/) রিমুভ করে সঠিক লিংক তৈরি করবে
+            base_url = YOUR_SERVER_URL.rstrip('/')
+            verify_link = f"{base_url}/verify?user_id={user_id}&vid={msg_id}"
             
             # ইউজারকে Pending স্ট্যাটাসে রাখা হলো
             user_ad_status[user_id] = {"video_id": msg_id, "status": "pending", "time": time.time()}
@@ -922,6 +957,7 @@ async def processing_engine():
                     buttons_list = [[InlineKeyboardButton("📥 DOWNLOAD / WATCH VIDEO 📥", url=final_link)]
                     ]
                     
+                    # 🔴 টিউটোরিয়াল বাটন যুক্ত করা হচ্ছে
                     if SYSTEM_CONFIG["tutorial_link"]:
                         buttons_list.append([InlineKeyboardButton("ℹ️ How to Download", url=SYSTEM_CONFIG["tutorial_link"])]
                         )
