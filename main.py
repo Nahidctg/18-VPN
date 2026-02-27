@@ -44,12 +44,12 @@ logger = logging.getLogger("AutoBot_Enterprise_Max")
 mongo_client = AsyncIOMotorClient(MONGO_URL)
 db = mongo_client["Enterprise_Bot_DB"]
 
-# কালেকশন সমূহ
+# কালেকশন সমূহ (অরিজিনাল + নতুন)
 queue_collection = db["video_queue"]    
 config_collection = db["bot_settings"]  
 users_collection = db["users_list"]     
-history_collection = db["user_history"] 
-stats_collection = db["video_stats"]    
+history_collection = db["user_history"] # স্মার্ট ফিচার: ইউজারের হিস্ট্রি
+stats_collection = db["video_stats"]    # স্মার্ট ফিচার: ভিউ কাউন্ট
 
 # গ্লোবাল কনফিগ ও সুন্দর ক্যাপশন টেম্পলেট (Updated)
 SYSTEM_CONFIG = {
@@ -59,13 +59,13 @@ SYSTEM_CONFIG = {
     "post_interval": 30,          
     "shortener_domain": None,
     "shortener_key": None,
-    "shortener_list":[],         
+    "shortener_list":[],         # স্মার্ট ফিচার: মাল্টি শর্টনার সাপোর্ট
     "auto_delete_time": 0,        
     "protect_content": False,     
     "tutorial_link": None,        
     "force_sub": True,            
-    "watermark_text": "@Enterprise_Bots", 
-    "web_app_url": "https://your-app-name.onrender.com", # ⚠️ আপনার বটের লাইভ ওয়েবসাইটের লিংক এখানে দিন ⚠️
+    "watermark_text": "@Enterprise_Bots", # স্মার্ট ফিচার: থাম্বনেইলে ওয়াটারমার্ক
+    "web_app_url": "https://your-app-name.onrender.com", # ⚠️ এখানে আপনার ওয়েবসাইটের লিংক দিন ⚠️
     "caption_template": "🔥 **{title}** 🔥\n\n🎬 **Quality:** `{quality}`\n📦 **Size:** `{size}`\n👁 **Views:** `{views}`\n\n🚀 **Fastest Download Link**\n\n📢 *Join our channel for more exclusive content!*"
 }
 
@@ -105,8 +105,10 @@ ATTRACTIVE_TITLES =[
     "🔞 Premium Leaked Content Free 🔞"
 ]
 
+# এন্টি-স্প্যাম ট্র্যাকার 
 user_last_request = {}
 
+# পাইরোগ্রাম ক্লায়েন্ট সেটআপ
 app = Client(
     "Enterprise_Session_Max",
     api_id=API_ID,
@@ -116,13 +118,15 @@ app = Client(
 )
 
 # ====================================================================
-#             ২. ওয়েব সার্ভার (STRICT VPN VERIFICATION)
+#             ২. ওয়েব সার্ভার (VPN + SHORTENER Redirect)
 # ====================================================================
 
 async def web_server_handler(request):
+    """সিম্পল ওয়েব পেজ রেসপন্স"""
     return web.Response(text="✅ Enterprise Bot System is Running Securely!")
 
 async def verify_vpn_handler(request):
+    """ভিপিএন চেক করে ইউজারকে সরাসরি লিংক শর্টনারে পাঠাবে (High CPM এর জন্য)"""
     try:
         user_id = int(request.match_info.get('user_id', 0))
         msg_id = int(request.match_info.get('msg_id', 0))
@@ -130,6 +134,7 @@ async def verify_vpn_handler(request):
         if not user_id or not msg_id:
             return web.Response(text="❌ Invalid Link!")
 
+        # ইউজারের IP Address বের করা
         ip = request.headers.get('X-Forwarded-For')
         if ip:
             ip = ip.split(',')[0].strip()
@@ -137,36 +142,49 @@ async def verify_vpn_handler(request):
             peername = request.transport.get_extra_info('peername')
             ip = peername[0] if peername else ''
 
+        # IP-API দিয়ে লাইভ চেক করা
         async with aiohttp.ClientSession() as session:
             async with session.get(f"http://ip-api.com/json/{ip}?fields=country,proxy,hosting", timeout=5) as resp:
                 data = await resp.json()
                 is_vpn = data.get('proxy', False) or data.get('hosting', False) or data.get('country') != 'Bangladesh'
 
-        bot_username = (await app.get_me()).username
-
         if is_vpn:
-            asyncio.create_task(deliver_video_from_web(user_id, msg_id))
+            # ভিপিএন ভেরিফাইড হলে তাকে আগামী ৩০ মিনিটের জন্য ডাটাবেসে পারমিশন দেওয়া হলো
+            await users_collection.update_one(
+                {"_id": user_id},
+                {"$set": {"vpn_verified_until": time.time() + 1800}}, # 30 mins
+                upsert=True
+            )
             
+            # শর্টনারের জন্য ডাউনলোড লিংক তৈরি করা (dl_msg_id)
+            bot_username = (await app.get_me()).username
+            dl_link = f"https://t.me/{bot_username}?start=dl_{msg_id}"
+            
+            # লিংক শর্ট করা (ভিপিএন অন থাকায় হাই CPM আসবে)
+            short_url = await shorten_url_api(dl_link)
+            
+            # শর্টনারে রিডাইরেক্ট করে দেওয়া
             html_content = f"""
             <html>
             <body style="background-color:#111; color:#0f0; text-align:center; padding:50px; font-family:Arial;">
                 <h1>✅ VPN Verified Successfully!</h1>
-                <h2>Video has been sent to your Telegram.</h2>
-                <p>Redirecting back to the bot...</p>
+                <h2>Redirecting you to the Secure Download Link...</h2>
+                <p>Please wait 2 seconds...</p>
                 <script>
-                    setTimeout(() => {{ window.location.href = 'tg://resolve?domain={bot_username}'; }}, 2500);
+                    setTimeout(() => {{ window.location.href = '{short_url}'; }}, 2000);
                 </script>
             </body>
             </html>
             """
             return web.Response(text=html_content, content_type='text/html')
         else:
+            # ভিপিএন অফ থাকলে ওয়ার্নিং
             html_content = """
             <html>
             <body style="background-color:black; color:white; text-align:center; padding:50px; font-family:Arial;">
                 <h1 style="color:red;">⚠️ VPN NOT DETECTED!</h1>
-                <h3>You MUST connect to a VPN to get this video.</h3>
-                <p style="color:#ccc;">1. Connect to any VPN (e.g., USA, Singapore).<br>2. Refresh this page.</p>
+                <h3>You MUST connect to a VPN (USA/UK/Singapore) to get the download link.</h3>
+                <p style="color:#ccc;">1. Turn on VPN.<br>2. Refresh this page.</p>
                 <button onclick="location.reload()" style="padding:15px 30px; font-size:18px; background:red; color:white; border:none; cursor:pointer; border-radius:10px;">🔄 Refresh Page</button>
             </body>
             </html>
@@ -178,10 +196,11 @@ async def verify_vpn_handler(request):
         return web.Response(text="❌ Error checking VPN. Please try again.")
 
 async def start_web_server():
+    """aiohttp ওয়েব সার্ভার রানার"""
     app_runner = web.Application()
     app_runner.add_routes([
         web.get('/', web_server_handler),
-        web.get('/verify/{user_id}/{msg_id}', verify_vpn_handler)
+        web.get('/verify/{user_id}/{msg_id}', verify_vpn_handler) # সিক্রেট ডাইনামিক রাউট
     ])
     runner = web.AppRunner(app_runner)
     await runner.setup()
@@ -189,13 +208,14 @@ async def start_web_server():
     port = int(os.environ.get("PORT", 8080))
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
-    logger.info(f"🌍 Strict VPN Web Server started on port {port}")
+    logger.info(f"🌍 Strict VPN + High CPM Web Server started on port {port}")
 
 # ====================================================================
-#                       ৩. হেল্পার ফাংশনস
+#                       ৩. হেল্পার ফাংশনস 
 # ====================================================================
 
 async def load_database_settings():
+    """বট স্টার্ট হলে ডাটাবেস থেকে সব সেটিং মেমোরিতে লোড করবে"""
     settings = await config_collection.find_one({"_id": "global_settings"})
     
     if not settings:
@@ -212,7 +232,7 @@ async def load_database_settings():
         SYSTEM_CONFIG["protect_content"] = settings.get("protect_content", False)
         SYSTEM_CONFIG["tutorial_link"] = settings.get("tutorial_link", None)
         SYSTEM_CONFIG["force_sub"] = settings.get("force_sub", True)
-        SYSTEM_CONFIG["shortener_list"] = settings.get("shortener_list",[])
+        SYSTEM_CONFIG["shortener_list"] = settings.get("shortener_list", [])
         SYSTEM_CONFIG["watermark_text"] = settings.get("watermark_text", "@Enterprise_Bots")
         logger.info("⚙️ Settings Loaded Successfully from MongoDB.")
 
@@ -231,10 +251,7 @@ async def add_user_to_db(user_id):
 async def send_log_message(text):
     if SYSTEM_CONFIG["log_channel"]:
         try:
-            await app.send_message(
-                chat_id=int(SYSTEM_CONFIG["log_channel"]),
-                text=text
-            )
+            await app.send_message(chat_id=int(SYSTEM_CONFIG["log_channel"]), text=text)
         except Exception as e:
             logger.error(f"Failed to send log: {e}")
 
@@ -260,6 +277,7 @@ def get_readable_size(size_in_bytes):
     return f"{s} {size_name[i]}"
 
 async def shorten_url_api(long_url):
+    """লিংক শর্টনার API দিয়ে লিংক ছোট করবে (স্মার্ট মাল্টি-শর্টনার লজিক সহ)"""
     if SYSTEM_CONFIG["shortener_list"]:
         shortener = random.choice(SYSTEM_CONFIG["shortener_list"])
         domain = shortener.get("domain")
@@ -365,13 +383,14 @@ def generate_collage_thumbnail(video_path, message_id):
         return None
 
 # ====================================================================
-#                       ৫. কমান্ডস 
+#                       ৫. কমান্ডস (Original Details Intact)
 # ====================================================================
 
 @app.on_message(filters.command("start"))
 async def start_command_handler(client, message):
     await add_user_to_db(message.from_user.id)
     
+    # ফোর্স সাবস্ক্রাইব চেকিং
     if SYSTEM_CONFIG["force_sub"] and SYSTEM_CONFIG["public_channel"]:
         is_joined = await check_force_sub(client, message.from_user.id)
         if not is_joined:
@@ -379,7 +398,8 @@ async def start_command_handler(client, message):
                 invite = await client.create_chat_invite_link(int(SYSTEM_CONFIG["public_channel"]))
                 param = message.command[1] if len(message.command) > 1 else ""
                 
-                buttons = InlineKeyboardMarkup([[InlineKeyboardButton("📢 Join Channel to Watch", url=invite.invite_link)],[InlineKeyboardButton("🔄 Refresh / Try Again", url=f"https://t.me/{client.me.username}?start={param}")]
+                buttons = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("📢 Join Channel to Watch", url=invite.invite_link)],[InlineKeyboardButton("🔄 Refresh / Try Again", url=f"https://t.me/{client.me.username}?start={param}")]
                 ])
                 return await message.reply(
                     "⚠️ **Access Denied!**\n\n"
@@ -389,19 +409,65 @@ async def start_command_handler(client, message):
             except Exception as e:
                 logger.error(f"Invite Link Error: {e}")
 
+    # ডেলিভারি রিকোয়েস্ট লজিক (VPN + Shortener Flow)
     if len(message.command) > 1:
+        param = message.command[1]
         user_id = message.from_user.id
+        
+        # স্মার্ট ফিচার: এন্টি-স্প্যাম চেকিং
         now = time.time()
         if user_id in user_last_request and now - user_last_request[user_id] < 5:
             return await message.reply("🚫 **Wait!** Please don't spam. Wait 5 seconds between requests.")
         user_last_request[user_id] = now
         
-        asyncio.create_task(process_user_delivery(client, message))
+        # মেসেজ আইডি বের করা
+        msg_id_str = param.replace("req_", "").replace("dl_", "")
+        if not msg_id_str.isdigit():
+            return
+        msg_id = int(msg_id_str)
+
+        # যদি ইউজার শর্টনার পার হয়ে আসে (dl_ লিংক)
+        if param.startswith("dl_"):
+            user_data = await users_collection.find_one({"_id": user_id})
+            vpn_expire = user_data.get("vpn_verified_until", 0) if user_data else 0
+            
+            if time.time() > vpn_expire:
+                # যদি কেউ শর্ট লিংক কপি করে আনে ভিপিএন ছাড়া, তাকে আবার ভেরিফাই করতে পাঠাবে
+                web_url = SYSTEM_CONFIG.get("web_app_url", "http://localhost:8080").rstrip('/')
+                verify_link = f"{web_url}/verify/{user_id}/{msg_id}"
+                btn = InlineKeyboardMarkup([[InlineKeyboardButton("🛡 Connect VPN & Get Link 🛡", url=verify_link)]])
+                return await message.reply(
+                    "⚠️ **VPN Session Expired or Invalid!**\n\n"
+                    "Please verify your VPN again to watch the video.", 
+                    reply_markup=btn
+                )
+            
+            # ভেরিফাইড ইউজার, ভিডিও দিয়ে দাও
+            asyncio.create_task(deliver_video_to_user(client, user_id, msg_id))
+            
+        else:
+            # req_ লিংক (চ্যানেল থেকে সরাসরি এসেছে)। তাকে ভিপিএন ভেরিফাই করতে পাঠাও।
+            web_url = SYSTEM_CONFIG.get("web_app_url", "http://localhost:8080").rstrip('/')
+            verify_link = f"{web_url}/verify/{user_id}/{msg_id}"
+            
+            btn = InlineKeyboardMarkup([[InlineKeyboardButton("🛡 Connect VPN & Get Download Link 🛡", url=verify_link)]
+            ])
+            await message.reply(
+                "⚠️ **STRICT VPN SECURITY WARNING** ⚠️\n\n"
+                "You **MUST** connect a VPN to get the download link.\n\n"
+                "**Steps to Watch:**\n"
+                "1️⃣ Connect your VPN (Select USA or UK).\n"
+                "2️⃣ Click the button below.\n"
+                "3️⃣ Complete the short link (with VPN ON).\n"
+                "4️⃣ Video will be delivered to your inbox!",
+                reply_markup=btn
+            )
         return
     
+    # অ্যাডমিন প্যানেল এবং সাধারণ ওয়েলকাম
     if message.from_user.id == ADMIN_ID:
         admin_menu = (
-            "👑 **Ultimate Admin Panel (v6.0 - Smart VPN)**\n\n"
+            "👑 **Ultimate Admin Panel (v6.0 - High CPM Smart VPN)**\n\n"
             "📡 **Channel Setup:**\n"
             "`/setsource -100xxxx` - Source Channel\n"
             "`/setpublic -100xxxx` - Public Channel\n"
@@ -425,6 +491,7 @@ async def start_command_handler(client, message):
             "Use `/search movie_name` to find videos."
         )
 
+# --- ২. অ্যাডমিন ড্যাশবোর্ড ---
 @app.on_message(filters.command("admin") & filters.user(ADMIN_ID))
 async def admin_dashboard_handler(client, message):
     buttons = [[InlineKeyboardButton("📊 System Stats", callback_data="stats_live"),
@@ -443,6 +510,7 @@ async def callback_handler(client, query: CallbackQuery):
     elif data == "close_admin":
         await query.message.delete()
 
+# --- ৩. চ্যানেল সেটআপ কমান্ডস ---
 @app.on_message(filters.command("setsource") & filters.user(ADMIN_ID))
 async def set_source_channel(client, message):
     try:
@@ -471,6 +539,7 @@ async def set_log_channel(client, message):
         await send_log_message("✅ **Log Channel Connected Successfully!**")
     except: await message.reply("❌ Invalid ID.")
 
+# --- ৪. কনফিগারেশন কমান্ডস ---
 @app.on_message(filters.command("setinterval") & filters.user(ADMIN_ID))
 async def set_post_interval(client, message):
     try:
@@ -516,6 +585,7 @@ async def set_shortener_config(client, message):
         await message.reply(f"🔗 **Shortener Configured!**\nDomain: `{domain}`")
     except: await message.reply("❌ Error.")
 
+# --- ৫. টুলস কমান্ডস (স্মার্ট ব্রডকাস্ট সহ) ---
 @app.on_message(filters.command("stats") & filters.user(ADMIN_ID))
 async def show_stats(client, message):
     users = await users_collection.count_documents({})
@@ -571,6 +641,7 @@ async def broadcast_message(client, message):
         f"deleted: `{deleted}`"
     )
 
+# --- ৬. সার্চ এবং হিস্ট্রি ---
 @app.on_message(filters.command("search"))
 async def search_handler(client, message):
     if len(message.command) < 2:
@@ -584,7 +655,7 @@ async def search_handler(client, message):
     
     txt = "🔍 **Search Results Found:**\n\n"
     for res in results:
-        txt += f"🎬 {res['caption'][:50]}... \n🔗 `/start {res['msg_id']}`\n\n"
+        txt += f"🎬 {res['caption'][:50]}... \n🔗 `/start req_{res['msg_id']}`\n\n"
     await message.reply(txt)
 
 @app.on_message(filters.command("history"))
@@ -602,19 +673,25 @@ async def history_handler(client, message):
 #                       ৬. ইউজার ভিডিও ডেলিভারি
 # ====================================================================
 
-async def deliver_video_from_web(user_id, msg_id):
-    """ওয়েব সার্ভার ভিপিএন ভেরিফাই করার পর এই ফাংশন ভিডিও ইউজারের ইনবক্সে পাঠাবে"""
+async def deliver_video_to_user(client, user_id, msg_id):
+    """ভিপিএন এবং শর্টনার পার হওয়ার পর এই ফাংশনটি ইউজারের ইনবক্সে ভিডিও পাঠাবে"""
     try:
+        if not SYSTEM_CONFIG["source_channel"]:
+            return await app.send_message(user_id, "❌ **Bot Maintenance Mode.** (Source not set)")
+            
+        status_msg = await app.send_message(user_id, "🔄 **Processing your request...**")
         source_msg = await app.get_messages(int(SYSTEM_CONFIG["source_channel"]), msg_id)
         
         if not source_msg or (not source_msg.video and not source_msg.document):
-            await app.send_message(user_id, "❌ **Error:** Video not found or deleted from server.")
-            return
-
+            return await status_msg.edit("❌ **Error:** Video not found or deleted from server.")
+        
+        # স্মার্ট ফিচার: ভিউ ও হিস্ট্রি আপডেট এবং ক্লিন টাইটেল
         raw_title = source_msg.caption or "Exclusive Video"
         clean_user_title = re.sub(r'(https?://\S+|www\.\S+|t\.me/\S+|@\w+)', '', raw_title)
         clean_user_title = re.sub(r'\s+', ' ', clean_user_title).strip()
-        if len(clean_user_title) < 2: clean_user_title = "Exclusive Video"
+        
+        if len(clean_user_title) < 2:
+            clean_user_title = "Exclusive Video"
 
         await update_view_count(msg_id)
         await add_user_history(user_id, msg_id, clean_user_title)
@@ -625,50 +702,26 @@ async def deliver_video_from_web(user_id, msg_id):
             protect_content=SYSTEM_CONFIG["protect_content"]
         )
         
+        await status_msg.delete()
+        
         if SYSTEM_CONFIG["auto_delete_time"] > 0:
             warning = await app.send_message(user_id, f"⏳ **This video will be auto-deleted in {SYSTEM_CONFIG['auto_delete_time']} seconds!**")
+            
             async def delete_after_delay(m1, m2, delay):
                 await asyncio.sleep(delay)
                 try:
                     await m1.delete()
                     await m2.delete()
                 except: pass
+            
             asyncio.create_task(delete_after_delay(sent_msg, warning, SYSTEM_CONFIG["auto_delete_time"]))
             
     except Exception as e:
-        logger.error(f"Web Delivery Error: {e}")
-        try: await app.send_message(user_id, "❌ An error occurred while sending the video. Contact admin.")
+        logger.error(f"Delivery Error: {e}")
+        try: await app.send_message(user_id, "❌ An error occurred. Please contact admin.")
         except: pass
-
-async def process_user_delivery(client, message):
-    """ইউজার ভিডিও স্টার্ট করলে তাকে সিকিউর ভিপিএন লিংক দিবে"""
-    try:
-        msg_id = int(message.command[1])
-        user_id = message.from_user.id
-        
-        if not SYSTEM_CONFIG["source_channel"]:
-            return await message.reply("❌ **Bot Maintenance Mode.** (Source not set)")
-        
-        web_url = SYSTEM_CONFIG.get("web_app_url", "http://localhost:8080").rstrip('/')
-        verify_link = f"{web_url}/verify/{user_id}/{msg_id}"
-        
-        btn = InlineKeyboardMarkup([[InlineKeyboardButton("🛡 Connect VPN & Watch Video 🛡", url=verify_link)]
-        ])
-        
-        await message.reply(
-            "⚠️ **STRICT VPN SECURITY WARNING** ⚠️\n\n"
-            "You **MUST** connect a VPN to watch this video. Every single video requires a live VPN check.\n\n"
-            "**Steps to Watch:**\n"
-            "1️⃣ Connect your VPN (Select USA, UK, or Singapore).\n"
-            "2️⃣ Click the button below.\n"
-            "3️⃣ If your VPN is active, the video will be sent to your inbox automatically!",
-            reply_markup=btn
-        )
-            
-    except Exception as e:
-        logger.error(f"Delivery Request Error: {e}")
-        try: await message.reply("❌ An error occurred.")
-        except: pass
+    finally:
+        gc.collect() 
 
 # ====================================================================
 #                       ৭. সোর্স চ্যানেল মনিটরিং
@@ -696,6 +749,7 @@ async def source_channel_listener(client, message):
 # ====================================================================
 
 async def processing_engine():
+    """ব্যাকগ্রাউন্ডে সবসময় চলতে থাকা ইঞ্জিন (অরিজিনাল + High CPM আপডেট)"""
     if not os.path.exists("downloads"):
         os.makedirs("downloads")
         
@@ -707,6 +761,7 @@ async def processing_engine():
                 await asyncio.sleep(20)
                 continue
             
+            # ১. কিউ থেকে সবচেয়ে পুরনো ভিডিও নেওয়া
             task = await queue_collection.find_one(sort=[("date", 1)])
             
             if task:
@@ -714,6 +769,7 @@ async def processing_engine():
                 logger.info(f"🔨 Processing Task ID: {msg_id}")
                 
                 try:
+                    # ২. মেইন ভিডিও ফেচ করা
                     source_msg = await app.get_messages(int(SYSTEM_CONFIG["source_channel"]), msg_id)
                     
                     if not source_msg:
@@ -721,6 +777,7 @@ async def processing_engine():
                         await queue_collection.delete_one({"_id": task["_id"]})
                         continue
                     
+                    # স্মার্ট ফিচার: ডাইনামিক ফাইল সাইজ ও রেজোলিউশন ডিটেকশন
                     file = source_msg.video or source_msg.document
                     size_readable = get_readable_size(file.file_size)
                     
@@ -732,33 +789,39 @@ async def processing_engine():
                         elif h >= 720: quality_label = "HD 720p"
                         else: quality_label = "SD Quality"
 
+                    # ৩. ভিডিও ডাউনলোড (থাম্বনেইলের জন্য)
                     video_path = f"downloads/video_{msg_id}.mp4"
                     logger.info("⬇️ Downloading video for thumbnail generation...")
                     await app.download_media(source_msg, file_name=video_path)
                     
+                    # ৪. কোলাজ থাম্বনেইল তৈরি
                     thumb_path = await asyncio.to_thread(generate_collage_thumbnail, video_path, msg_id)
                     
+                    # ⚠️ MASTER UPDATE: চ্যানেলে সরাসরি বটের লিংক যাবে, শর্টনার নয়। 
+                    # শর্টনার পার হবে ওয়েব সার্ভারে ভিপিএন অন করার পর (যাতে হাই CPM আসে)
                     bot_username = (await app.get_me()).username
-                    deep_link = f"https://t.me/{bot_username}?start={msg_id}"
-                    final_link = await shorten_url_api(deep_link)
+                    direct_bot_link = f"https://t.me/{bot_username}?start=req_{msg_id}"
                     
+                    # টাইটেল রিপ্লেসমেন্ট লজিক
                     views_count = await get_views(msg_id)
                     new_spicy_title = random.choice(ATTRACTIVE_TITLES)
                     
                     final_caption = SYSTEM_CONFIG["caption_template"].format(
-                        title=new_spicy_title,
+                        title=new_spicy_title, 
                         quality=quality_label,
                         size=size_readable,
                         views=views_count
                     )
                     
-                    buttons_list = [[InlineKeyboardButton("📥 DOWNLOAD / WATCH VIDEO 📥", url=final_link)]]
+                    # ৭. বাটন কনফিগারেশন
+                    buttons_list = [[InlineKeyboardButton("📥 DOWNLOAD / WATCH VIDEO 📥", url=direct_bot_link)]]
                     if SYSTEM_CONFIG["tutorial_link"]:
                         buttons_list.append([InlineKeyboardButton("ℹ️ How to Download", url=SYSTEM_CONFIG["tutorial_link"])])
                     
                     buttons = InlineKeyboardMarkup(buttons_list)
                     dest_chat = int(SYSTEM_CONFIG["public_channel"])
                     
+                    # ৮. পাবলিশ করা
                     if thumb_path and os.path.exists(thumb_path):
                         await app.send_photo(chat_id=dest_chat, photo=thumb_path, caption=final_caption, reply_markup=buttons)
                         log_status = "✅ Posted with Smart Thumbnail"
@@ -772,6 +835,7 @@ async def processing_engine():
                 except Exception as e:
                     logger.error(f"❌ Processing Error: {e}")
                 
+                # ৯. ক্লিনআপ
                 await queue_collection.delete_one({"_id": task["_id"]})
                 try:
                     if os.path.exists(video_path): os.remove(video_path)
@@ -791,12 +855,19 @@ async def processing_engine():
 # ====================================================================
 
 async def main():
+    # ওয়েব সার্ভার ব্যাকগ্রাউন্ডে চালু
     asyncio.create_task(start_web_server())
+    
+    # বট স্টার্ট
     await app.start()
+    
+    # সেটিংস লোড
     await load_database_settings()
+    
+    # প্রসেসিং ইঞ্জিন চালু
     asyncio.create_task(processing_engine())
     
-    logger.info("🤖 AutoBot Enterprise SMART VERSION (VPN FORCED) is OPERATIONAL...")
+    logger.info("🤖 AutoBot Enterprise (HIGH CPM + VPN) is FULLY OPERATIONAL...")
     await idle()
     await app.stop()
 
