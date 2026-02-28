@@ -65,7 +65,7 @@ SYSTEM_CONFIG = {
     "tutorial_link": None,        
     "force_sub": True,            
     "watermark_text": "@Enterprise_Bots", # স্মার্ট ফিচার: থাম্বনেইলে ওয়াটারমার্ক
-    "web_app_url": "https://your-app-name.onrender.com", # ⚠️ এখানে আপনার ওয়েবসাইটের লিংক দিন ⚠️
+    "web_app_url": "https://competent-eliza-nahidcrk-da6f9304.koyeb.app", # ⚠️ এখানে আপনার ওয়েবসাইটের লিংক দিন ⚠️
     "caption_template": "🔥 **{title}** 🔥\n\n🎬 **Quality:** `{quality}`\n📦 **Size:** `{size}`\n👁 **Views:** `{views}`\n\n🚀 **Fastest Download Link**\n\n📢 *Join our channel for more exclusive content!*"
 }
 
